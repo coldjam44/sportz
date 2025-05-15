@@ -194,124 +194,131 @@ public function myReservations(Request $request)
             ->orderBy('start_time', 'desc')
             ->get();
 
-        $results = $bookings->map(function ($reservation) use ($userauth) {
-            $stadium = $reservation->stadium;
-            $start = Carbon::parse($reservation->start_time);
-            $end = Carbon::parse($reservation->end_time);
-            $duration = $start->diffInHours($end);
+     
+$results = $bookings->map(function ($reservation) use ($userauth) {
+    $stadium = $reservation->stadium;
+    $start = Carbon::parse($reservation->start_time);
+    $end = Carbon::parse($reservation->end_time);
+    $duration = $start->diffInHours($end);
 
-            $morning_start = Carbon::parse($stadium->morning_start_time);
-            $morning_end = Carbon::parse($stadium->morning_end_time);
-            $evening_start = Carbon::parse($stadium->evening_start_time);
-            $evening_end = Carbon::parse($stadium->evening_end_time)->addDay();
+    $morning_start = Carbon::parse($stadium->morning_start_time);
+    $morning_end = Carbon::parse($stadium->morning_end_time);
+    $evening_start = Carbon::parse($stadium->evening_start_time);
+    $evening_end = Carbon::parse($stadium->evening_end_time)->addDay();
 
-            $morning_hours = 0;
-            $evening_hours = 0;
+    $morning_hours = 0;
+    $evening_hours = 0;
 
-            $current = $start->copy();
-            while ($current < $end) {
-                $nextHour = $current->copy()->addHour();
+    $current = $start->copy();
+    while ($current < $end) {
+        $nextHour = $current->copy()->addHour();
 
-                if ($current >= $morning_start && $current < $morning_end) {
-                    $morning_hours++;
-                } elseif ($current >= $evening_start || $current < $evening_end) {
-                    $evening_hours++;
-                }
+        if ($current >= $morning_start && $current < $morning_end) {
+            $morning_hours++;
+        } elseif ($current >= $evening_start || $current < $evening_end) {
+            $evening_hours++;
+        }
 
-                $current = $nextHour;
-            }
+        $current = $nextHour;
+    }
 
-            $morning_total_price = $morning_hours * $stadium->booking_price;
-            $evening_total_price = $evening_hours * ($stadium->evening_extra_price_per_hour ?? 0);
+    $morning_total_price = $morning_hours * $stadium->booking_price;
+    $evening_total_price = $evening_hours * ($stadium->evening_extra_price_per_hour ?? 0);
 
-            // حساب اللاعبين الذين انضموا للفريق الذي ينتمي إليه المستخدم فقط
-            $joined = $reservation->participants->where('userauth_id', $userauth->id)->count();
-            $remaining = 0;
-            $player_price = 0;
+    // Calculate total joined players for the same stadium and date
+    $totalJoinedPlayers = BookStadium::where('createstadium_id', $reservation->createstadium_id)
+    ->where('date', $reservation->date)
+    ->where('start_time', $reservation->start_time) // Filter by start_time
+    ->where('end_time', $reservation->end_time)     // Filter by end_time
+    ->sum('players_count');
 
-            $players = $reservation->participants->map(fn($p) => $p->user->name ?? '');
+    $remaining = 0;
+    $player_price = 0;
 
-            if ($reservation->booking_type === 'individual') {
-                // استخدام نفس الطريقة التي تم تطبيقها في joinIndividualBooking و getIndividualBookings
-                $remaining = max(0, $reservation->remaining_players);
-                $total_price = $morning_total_price + $evening_total_price;
-                $player_price = $reservation->players_count > 0
-                    ? number_format($total_price / $reservation->players_count, 2)
-                    : 0;
-            }
+    $players = $reservation->participants->map(fn($p) => $p->user->name ?? '');
 
-            if ($reservation->booking_type === 'team') {
-                $total_players_needed = $reservation->teams_count * $reservation->min_players_per_team;
-                $remaining = max(0, $total_players_needed - $joined); // حساب اللاعبين المتبقين للفريق
-                $player_price = $total_players_needed > 0
-                    ? number_format($reservation->total_price / $total_players_needed, 2)
-                    : 0;
-            }
+    if ($reservation->booking_type === 'individual') {
+        $remaining = max(0, $reservation->remaining_players);
+        $total_price = $morning_total_price + $evening_total_price;
+        $player_price = $reservation->players_count > 0
+            ? number_format($total_price / $reservation->players_count, 2)
+            : 0;
+    }
 
-            if (
-                ($reservation->booking_type == 'individual' && $remaining == 0) ||
-                ($reservation->booking_type == 'team' && $reservation->remaining_teams == 0)
-            ) {
-                $reservation->status = 'completed';
-            } elseif ($reservation->status !== 'cancelled') {
-                $reservation->status = 'pending';
-            }
+    if ($reservation->booking_type === 'team') {
+        $total_players_needed = $reservation->teams_count * $reservation->min_players_per_team;
+        $remaining = max(0, $total_players_needed - $totalJoinedPlayers); // Use total joined players
+        $player_price = $total_players_needed > 0
+            ? number_format($reservation->total_price / $total_players_needed, 2)
+            : 0;
+    }
 
-            $status_text = match ($reservation->status) {
-                'cancelled' => "حجز ملغي",
-                'completed' => "حجز مكتمل",
-                default => "الحجز لم يكتمل بعد"
-            };
+    if (
+        ($reservation->booking_type == 'individual' && $remaining == 0) ||
+        ($reservation->booking_type == 'team' && $reservation->remaining_teams == 0)
+    ) {
+        $reservation->status = 'completed';
+    } elseif ($reservation->status !== 'cancelled') {
+        $reservation->status = 'pending';
+    }
 
-            $data = [
-                'booking_id' => $reservation->id,
-                'booking_code' => '#' . $reservation->id,
-                'booking_type' => $reservation->booking_type,
-                'status' => $reservation->status,
-                'status_text' => $status_text,
-                'stadium_name' => $stadium->name ?? '',
-                'stadium_image' => $stadium->image ? asset($stadium->image) : '',
-                'location' => $stadium->location ?? '',
-                'distance' => '2.4 كم',
-                'date' => $reservation->date,
-                'start_time' => $reservation->start_time,
-                'end_time' => $reservation->end_time,
-                'duration' => $duration . ' ساعات',
-                'morning_hours' => $morning_hours,
-                'morning_total_price' => $morning_total_price,
-                'evening_hours' => $evening_hours,
-                'evening_total_price' => $evening_total_price,
-                'total_price' => $reservation->total_price + $evening_total_price,
-                'final_price' => $reservation->total_price + $evening_total_price,
-                'joined_players' => $joined,  // اللاعبين الذين انضموا للفريق الخاص بالمستخدم
-                'remaining_players' => $remaining,  // اللاعبين المتبقين للفريق الخاص بالمستخدم
-                'players' => $players,
-                'sport_id' => $stadium?->sportsuser?->id,
-                'sportname_ar' => $stadium?->sportsuser?->name_ar,
-                'sportname_en' => $stadium?->sportsuser?->name_en,
-                'average_rate' => $stadium->rates ? $stadium->rates->avg('rate') : null,
-                'ratings_count' => $stadium->rates ? $stadium->rates->count() : 0,
-            ];
+    $status_text = match ($reservation->status) {
+        'cancelled' => "حجز ملغي",
+        'completed' => "حجز مكتمل",
+        default => "الحجز لم يكتمل بعد"
+    };
 
-            if ($reservation->booking_type == 'field') {
-                $data['price_per_hour'] = $stadium->booking_price;
-                $data['extra_price_per_hour'] = $stadium->evening_extra_price_per_hour ?? 0;
-                $data['hours'] = $duration;
-            }
+    $data = [
+        'booking_id' => $reservation->id,
+        'booking_code' => '#' . $reservation->id,
+        'booking_type' => $reservation->booking_type,
+        'status' => $reservation->status,
+        'status_text' => $status_text,
+        'stadium_name' => $stadium->name ?? '',
+        'stadium_image' => $stadium->image ? asset($stadium->image) : '',
+        'location' => $stadium->location ?? '',
+        'distance' => '2.4 كم',
+        'date' => $reservation->date,
+        'start_time' => $reservation->start_time,
+        'end_time' => $reservation->end_time,
+        'duration' => $duration . ' ساعات',
+        'morning_hours' => $morning_hours,
+        'morning_total_price' => $morning_total_price,
+        'evening_hours' => $evening_hours,
+        'evening_total_price' => $evening_total_price,
+        'total_price' => $reservation->total_price + $evening_total_price,
+        'final_price' => $reservation->total_price + $evening_total_price,
+        'joined_players' => $totalJoinedPlayers, // Total joined players for the same stadium and date
+        'remaining_players' => $remaining,  // Remaining players
+        'players' => $players,
+        'sport_id' => $stadium?->sportsuser?->id,
+        'sportname_ar' => $stadium?->sportsuser?->name_ar,
+        'sportname_en' => $stadium?->sportsuser?->name_en,
+        'average_rate' => $stadium->rates ? $stadium->rates->avg('rate') : null,
+        'ratings_count' => $stadium->rates ? $stadium->rates->count() : 0,
+    ];
 
-            if ($reservation->booking_type == 'individual') {
-                $data['player_price'] = $player_price;
-            }
+    if ($reservation->booking_type == 'field') {
+        $data['price_per_hour'] = $stadium->booking_price;
+        $data['extra_price_per_hour'] = $stadium->evening_extra_price_per_hour ?? 0;
+        $data['hours'] = $duration;
+    }
 
-            if ($reservation->booking_type == 'team') {
-                $data['team_price_per_player'] = $reservation->total_price;
-                $data['price_per_player'] = $player_price;
-                $data['teams_count'] = $reservation->teams_count;
-                $data['min_players_per_team'] = $reservation->min_players_per_team;
-            }
+    if ($reservation->booking_type == 'individual') {
+        $data['player_price'] = $player_price;
+    }
 
-            return $data;
-        });
+    if ($reservation->booking_type == 'team') {
+        $data['team_price_per_player'] = $reservation->total_price;
+        $data['price_per_player'] = $player_price;
+        $data['teams_count'] = $reservation->teams_count;
+        $data['min_players_per_team'] = $reservation->min_players_per_team;
+    }
+
+    return $data;
+});
+
+        
 
         // Apply filtering
         $type = $request->input('type');

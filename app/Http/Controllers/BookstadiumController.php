@@ -540,9 +540,7 @@ public function getTeamBookings(Request $request)
 
 
 
-
-
-public function joinTeamBooking(Request $request)
+ public function joinTeamBooking(Request $request)
 {
     $request->validate([
         'booking_id' => 'required|exists:bookstadia,id',
@@ -565,36 +563,48 @@ public function joinTeamBooking(Request $request)
             ->where('booking_type', 'team')
             ->firstOrFail();
 
-        // لو null → حجز الفريق بالكامل
+        $playersToAdd = 0;
+
+        // إجمالي عدد اللاعبين المسموح به
+        $totalPlayersAllowed = $booking->teams_count * $booking->min_players_per_team;
+
+        // عدد الأماكن المتبقية الفعلية
+        $availableSlots = $totalPlayersAllowed - $booking->players_count;
+
+        // حجز فريق كامل
         if (is_null($request->players_count)) {
             if ($booking->remaining_teams <= 0) {
                 return response()->json(['message' => 'لا يوجد فرق متبقية للحجز'], 400);
             }
 
-            // نحجز فريق كامل
-            $playersToAdd = $booking->min_players_per_team;
+            if ($booking->min_players_per_team > $availableSlots) {
+                return response()->json([
+                    'message' => "لا يمكن حجز فريق كامل، المتاح فقط: {$availableSlots} لاعب"
+                ], 400);
+            }
 
-            $booking->remaining_teams -= 1;
+            $playersToAdd = $booking->min_players_per_team;
             $booking->players_count += $playersToAdd;
-        } else {
-            // المستخدم عايز يحجز كفرد
+            $booking->remaining_teams -= 1;
+        }
+        // حجز أفراد
+        else {
             $playersToAdd = $request->players_count;
 
-            $maxPlayers = $booking->remaining_teams * $booking->min_players_per_team;
-
-            if ($playersToAdd > $maxPlayers) {
-                return response()->json([ 
-                    'message' => "العدد المطلوب أكبر من الحد المتاح: {$maxPlayers} لاعبين"
+            if ($playersToAdd > $availableSlots) {
+                return response()->json([
+                    'message' => "العدد المطلوب يتعدى العدد المتبقي المتاح للحجز، المتاح فقط: {$availableSlots} لاعب"
                 ], 400);
             }
 
             $booking->players_count += $playersToAdd;
 
-            // نحسب عدد الفرق اللي اكتملوا من العدد ده
+            // تحديث عدد الفرق المتبقية بعد الزيادة
             $completeTeams = intdiv($booking->players_count, $booking->min_players_per_team);
             $booking->remaining_teams = max($booking->teams_count - $completeTeams, 0);
         }
 
+        // إذا اكتمل الحجز
         if ($booking->remaining_teams == 0) {
             $booking->status = 'completed';
         }
