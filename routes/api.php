@@ -23,6 +23,7 @@ use App\Http\Controllers\Apis\CreatestoreController;
 use App\Http\Controllers\Apis\ProviderrateController;
 use App\Http\Controllers\Apis\CreatestadiumController;
 use App\Http\Controllers\Apis\AvilableserviceController;
+use App\Http\Controllers\TimeCalculationController;
 // use App\Http\Controllers\Apis\AuthController;
 /*
 |--------------------------------------------------------------------------
@@ -211,3 +212,4 @@ Route::middleware('auth:api')->get('user/all-products', [CreatestoreController::
 Route::middleware('auth:api')->get('store/{store_id}', [CreatestoreController::class, 'getStoreDetails']);
 Route::middleware('auth:api')->get('user/productdeatials/{product_id}', [CreatestoreController::class, 'getProductDetails']);
 
+Route::post('/time-details', [TimeCalculationController::class, 'calculateTime']);

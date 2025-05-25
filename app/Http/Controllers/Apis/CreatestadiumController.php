@@ -93,6 +93,9 @@ class CreatestadiumController extends Controller
         'is_hidden' => 'nullable|boolean',
     ]);
 
+
+
+
     // إنشاء الملعب وربطه بالمزود (provider)
     $stadium = new CreateStadium($validated);
     $stadium->providerauth_id = $provider->id; // إضافة معرف المزود المصادق عليه

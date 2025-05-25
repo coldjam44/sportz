@@ -12,7 +12,7 @@ class bookstadium extends Model
 
     protected $fillable = [
         'createstadium_id', 'userauth_id', 'start_time', 'end_time', 'booking_type','date','player_price',
-        'players_count', 'teams_count', 'min_players_per_team', 'total_price'  ,  'remaining_teams', // أضفه لضمان حفظ القيم الصحيحة
+        'players_count', 'teams_count', 'min_players_per_team', 'total_price'  ,  'remaining_players', 'remaining_teams', // أضفه لضمان حفظ القيم الصحيحة
 
     ];
 
