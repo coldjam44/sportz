@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\TimeCalculationController;
 use App\Models\CreateStadium;
+use App\Models\Participant;
 class ReservationController extends Controller
 {
 
@@ -301,6 +302,7 @@ class ReservationController extends Controller
                         'duration' => $duration_text,
                         'distance' => '2.4 كم',
                         'date' => $reservation->date,
+                        'created_at' => $reservation->created_at,
                         'start_time' => $reservation->start_time,
                         'end_time' => $reservation->end_time,
                         'morning_hours' => $morning_hours,
@@ -392,8 +394,9 @@ class ReservationController extends Controller
         }
     }
 
+ 
 
-
+    
 
     public function cancelReservation(Request $request, $id)
     {
@@ -415,8 +418,55 @@ class ReservationController extends Controller
 
             // التحقق مما إذا كان المستخدم هو صاحب الحجز أو مشارك فيه
             if ($reservation->userauth_id !== $userauth->id) {
-                return response()->json(['message' => 'ليس لديك صلاحية إلغاء هذا الحجز'], 403);
+                // تحقق إذا كان المستخدم مشارك في الحجز
+                $participations = Participant::where('bookstadium_id', $reservation->id)
+                    ->where('userauth_id', $userauth->id)
+                    ->get();
+
+                if ($participations->isEmpty()) {
+                    return response()->json(['message' => 'ليس لديك صلاحية إلغاء هذا الحجز'], 403);
+                }
+
+                $countToRemove = $participations->count();
+
+                // حذف جميع مشاركاته
+                Participant::where('bookstadium_id', $reservation->id)
+                    ->where('userauth_id', $userauth->id)
+                    ->delete();
+
+                // تحديث عدد اللاعبين
+                $reservation->players_count = max(0, $reservation->players_count - $countToRemove);
+
+                if ($reservation->booking_type === 'individual') {
+                    $reservation->remaining_players += $countToRemove;
+
+                    if ($reservation->remaining_players > 0) {
+                        $reservation->status = 'available';
+                    }
+                } elseif ($reservation->booking_type === 'team') {
+                    $completeTeams = intdiv($reservation->players_count, $reservation->min_players_per_team);
+                    $reservation->remaining_teams = max($reservation->teams_count - $completeTeams, 0);
+
+                    $playersInCurrentTeam = $reservation->players_count % $reservation->min_players_per_team;
+
+                    if ($playersInCurrentTeam == 0 && $reservation->remaining_teams > 0) {
+                        $reservation->remaining_players = $reservation->min_players_per_team;
+                    } else {
+                        $reservation->remaining_players = $reservation->min_players_per_team - $playersInCurrentTeam;
+                    }
+
+                    if ($reservation->remaining_teams == 0 && $reservation->remaining_players == 0) {
+                        $reservation->status = 'completed';
+                    } else {
+                        $reservation->status = 'available';
+                    }
+                }
+
+                $reservation->save();
+
+                return response()->json(['message' => 'تم إلغاء مشاركتك في الحجز بنجاح'], 200);
             }
+
 
             // ✅ تحديث حالة الحجز إلى "ملغي"
             $reservation->status = 'cancelled';

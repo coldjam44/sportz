@@ -313,7 +313,16 @@ public function show($id)
     // **3️⃣ تعديل البيانات قبل الإرسال**
     $products->getCollection()->transform(function ($product) {
         $product->image = $this->getImageLinks($product->image);
-        $product->orders_count = $product->order_items_count;
+        // حساب عدد الطلبات الكلي
+        $ordersCount = $product->order_items_count;
+        // جلب عدد الطلبات الملغية
+        $canceledCount = \App\Models\OrderItem::where('product_id', $product->id)
+            ->whereHas('order', function($q) {
+                $q->where('status', 'canceled');
+            })->count();
+        // طرح الملغية من الكلي
+        $product->orders_count = $ordersCount - $canceledCount;
+        $product->canceled_subtracted = $canceledCount;
         unset($product->order_items_count);
         return $product;
     });

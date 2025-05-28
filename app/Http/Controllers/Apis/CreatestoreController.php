@@ -354,7 +354,7 @@ public function getAllStoresForUser(Request $request)
                 ->havingRaw('AVG(rate) BETWEEN ? AND ?', [$minRate, $maxRate]);
         });
     }
-
+    
     $storesPaginator = $storesQuery->paginate($perPage);
 
     $stores = $storesPaginator->getCollection()->map(function ($store) {
@@ -511,40 +511,51 @@ public function getStoreSectionsAndProducts(Request $request)
     }
 
     // تجهيز البيانات للإرجاع
-    $transformed = $products->getCollection()->map(function ($product) use ($cartItems, $favouriteProductIds) {
-    $store = optional($product->section)->stores->first(); // أو تقدر تعمل فلترة لو فيه أكثر من متجر
+$transformed = $products->getCollection()->map(function ($product) use ($cartItems, $favouriteProductIds) {
+    $store = optional($product->section)->stores->first();
 
-      
-        $storeRatings = $store ? $store->rates : collect();
-        $totalRatings = $storeRatings->sum('rate');
-        $ratingsCount = $storeRatings->count();
-        $averageRate = $ratingsCount > 0 ? round($totalRatings / $ratingsCount, 1) : 0;
-      
-        return [
-            'id' => $product->id,
-            'name_ar' => $product->name_ar,
-            'name_en' => $product->name_en,
-            'description_ar' => $product->description_ar,
-            'description_en' => $product->description_en,
-            'price' => $product->price, 
-            'discount' => $product->discount,
-            'image_urls' => collect(json_decode($product->image, true))->map(fn($img) => asset('addproducts/' . $img))->toArray(),
-            'section_name_ar' => optional($product->section)->name_ar,
-            'section_name_en' => optional($product->section)->name_en,
-            'in_cart' => $cartItems->has($product->id),
-            'quantity' => $cartItems->has($product->id) ? $cartItems[$product->id]->quantity : 0,
-            'in_favourite' => in_array($product->id, $favouriteProductIds),
-           'store' => $store ? [
-            //'id' => $store->id,
+    // حساب التقييمات
+    $storeRatings = $store ? $store->rates : collect();
+    $totalRatings = $storeRatings->sum('rate');
+    $ratingsCount = $storeRatings->count();
+    $averageRate = $ratingsCount > 0 ? round($totalRatings / $ratingsCount, 1) : 0;
+
+    // فحص صلاحية الخصم
+    $now = now(); // Carbon instance
+    $startDate = $product->start_time ? \Carbon\Carbon::parse($product->start_time) : null;
+    $endDate = $product->end_time ? \Carbon\Carbon::parse($product->end_time) : null;
+
+    $validDiscount = null;
+    if ($product->discount && $startDate && $endDate) {
+        if ($now->between($startDate, $endDate)) {
+            $validDiscount = $product->discount; // الخصم ساري
+        }
+    }
+
+    return [
+        'id' => $product->id,
+        'name_ar' => $product->name_ar,
+        'name_en' => $product->name_en,
+        'description_ar' => $product->description_ar,
+        'description_en' => $product->description_en,
+        'price' => $product->price,
+        'discount' => $validDiscount, // فقط إذا كان ساريًا
+        'final_price' => $validDiscount ? $product->price - $validDiscount : $product->price,
+        'image_urls' => collect(json_decode($product->image, true))->map(fn($img) => asset('addproducts/' . $img))->toArray(),
+        'section_name_ar' => optional($product->section)->name_ar,
+        'section_name_en' => optional($product->section)->name_en,
+        'in_cart' => $cartItems->has($product->id),
+        'quantity' => $cartItems->has($product->id) ? $cartItems[$product->id]->quantity : 0,
+        'in_favourite' => in_array($product->id, $favouriteProductIds),
+        'store' => $store ? [
             'name' => $store->name,
             'location' => $store->location,
             'image' => asset($store->image),
-           // 'tax_record' => $store->tax_record,
-               'average_rate' => $averageRate,
-                'ratings_count' => $ratingsCount,
+            'average_rate' => $averageRate,
+            'ratings_count' => $ratingsCount,
         ] : null,
-        ];
-    });
+    ];
+});
 
     return response()->json([
         'status' => true,
