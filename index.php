@@ -1,3 +1,4 @@
-<?php
+<?php  
 
-echo 'Hello World :-)';
+echo '<p class="text-center text-danger">لم يتم تحديد جدول.</p>';
+?>

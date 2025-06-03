@@ -363,7 +363,7 @@ class ReservationController extends Controller
             // Apply filtering
             $type = $request->input('type');
             $filtered = match ($type) {
-                'current' => $results->where('status', 'pending')->values(),
+                'current' => $results->where('status', 'pending')->filter(fn($res) => $res['status'] !== 'cancelled')->values(),
                 'past' => $results->whereIn('status', ['completed', 'cancelled'])->values(),
                 'created' => $results,
                 default => $results,
