@@ -397,101 +397,114 @@ class ReservationController extends Controller
  
 
     
+ public function cancelReservation(Request $request, $id)
+{
+    try {
+        $user = JWTAuth::parseToken()->authenticate();
 
-    public function cancelReservation(Request $request, $id)
-    {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
+        // البحث عن userauth_id المرتبط بالمستخدم
+        $userauth = UserAuth::where('phone', $user->phone_number)->first();
+        if (!$userauth) {
+            return response()->json(['message' => 'المستخدم غير موجود'], 400);
+        }
 
-            // البحث عن userauth_id المرتبط بالمستخدم
-            $userauth = UserAuth::where('phone', $user->phone_number)->first();
-            if (!$userauth) {
-                return response()->json(['message' => 'المستخدم غير موجود'], 400);
+        // البحث عن الحجز
+        $reservation = BookStadium::where('id', $id)->first();
+
+        if (!$reservation) {
+            return response()->json(['message' => 'الحجز غير موجود'], 403);
+        }
+
+        // التحقق مما إذا كان المستخدم هو صاحب الحجز أو مشارك فيه
+        if ($reservation->userauth_id !== $userauth->id) {
+            // تحقق إذا كان المستخدم مشارك في الحجز
+            $participations = Participant::where('bookstadium_id', $reservation->id)
+                ->where('userauth_id', $userauth->id)
+                ->get();
+
+            if ($participations->isEmpty()) {
+                return response()->json(['message' => 'ليس لديك صلاحية إلغاء هذا الحجز'], 403);
             }
 
-            // البحث عن الحجز
-            $reservation = BookStadium::where('id', $id)->first();
+            $countToRemove = $participations->count();
 
-            if (!$reservation) {
-                return response()->json(['message' => 'الحجز غير موجود'], 403);
-            }
+            // حذف جميع مشاركاته
+            Participant::where('bookstadium_id', $reservation->id)
+                ->where('userauth_id', $userauth->id)
+                ->delete();
 
-            // التحقق مما إذا كان المستخدم هو صاحب الحجز أو مشارك فيه
-            if ($reservation->userauth_id !== $userauth->id) {
-                // تحقق إذا كان المستخدم مشارك في الحجز
-                $participations = Participant::where('bookstadium_id', $reservation->id)
-                    ->where('userauth_id', $userauth->id)
-                    ->get();
+            // تحديث عدد اللاعبين
+            $reservation->players_count = max(0, $reservation->players_count - $countToRemove);
 
-                if ($participations->isEmpty()) {
-                    return response()->json(['message' => 'ليس لديك صلاحية إلغاء هذا الحجز'], 403);
-                }
-
-                $countToRemove = $participations->count();
-
-                // حذف جميع مشاركاته
-                Participant::where('bookstadium_id', $reservation->id)
-                    ->where('userauth_id', $userauth->id)
-                    ->delete();
-
-                // تحديث عدد اللاعبين
-                $reservation->players_count = max(0, $reservation->players_count - $countToRemove);
-
-                if ($reservation->booking_type === 'individual') {
-                    $reservation->remaining_players += $countToRemove;
-
-                    if ($reservation->remaining_players > 0) {
-                        $reservation->status = 'available';
-                    }
-                } elseif ($reservation->booking_type === 'team') {
-                    $completeTeams = intdiv($reservation->players_count, $reservation->min_players_per_team);
-                    $reservation->remaining_teams = max($reservation->teams_count - $completeTeams, 0);
-
-                    $playersInCurrentTeam = $reservation->players_count % $reservation->min_players_per_team;
-
-                    if ($playersInCurrentTeam == 0 && $reservation->remaining_teams > 0) {
-                        $reservation->remaining_players = $reservation->min_players_per_team;
-                    } else {
-                        $reservation->remaining_players = $reservation->min_players_per_team - $playersInCurrentTeam;
-                    }
-
-                    if ($reservation->remaining_teams == 0 && $reservation->remaining_players == 0) {
-                        $reservation->status = 'completed';
-                    } else {
-                        $reservation->status = 'available';
-                    }
-                }
-
-                $reservation->save();
-
-                return response()->json(['message' => 'تم إلغاء مشاركتك في الحجز بنجاح'], 200);
-            }
-
-
-            // ✅ تحديث حالة الحجز إلى "ملغي"
-            $reservation->status = 'cancelled';
-            $reservation->cancellation_reason = $request->input('reason', 'لم يتم تحديد السبب');
-            // $reservation->status_text = 'حجز ملغي';
-
-            // ✅ تحديث remaining_players أو remaining_teams عند الإلغاء
             if ($reservation->booking_type === 'individual') {
-                // زيادة عدد اللاعبين المتبقين عند إلغاء الحجز الفردي
-                $reservation->remaining_players = min($reservation->players_count, $reservation->remaining_players + 1);
+                $reservation->remaining_players += $countToRemove;
+
+                if ($reservation->remaining_players > 0) {
+                    $reservation->status = 'available';
+                }
             } elseif ($reservation->booking_type === 'team') {
-                // زيادة عدد الفرق المتبقية عند إلغاء الحجز كفريق
-                $reservation->remaining_teams = min($reservation->teams_count, $reservation->remaining_teams + 1);
+                $completeTeams = intdiv($reservation->players_count, $reservation->min_players_per_team);
+                $reservation->remaining_teams = max($reservation->teams_count - $completeTeams, 0);
+
+                $playersInCurrentTeam = $reservation->players_count % $reservation->min_players_per_team;
+
+                if ($playersInCurrentTeam == 0 && $reservation->remaining_teams > 0) {
+                    $reservation->remaining_players = $reservation->min_players_per_team;
+                } else {
+                    $reservation->remaining_players = $reservation->min_players_per_team - $playersInCurrentTeam;
+                }
+
+                if ($reservation->remaining_teams == 0 && $reservation->remaining_players == 0) {
+                    $reservation->status = 'completed';
+                } else {
+                    $reservation->status = 'available';
+                }
             }
 
             $reservation->save();
 
-            return response()->json([
-                'message' => 'تم إلغاء الحجز بنجاح',
-                'status' => 'حجز ملغي'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'حدث خطأ: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'تم إلغاء مشاركتك في الحجز بنجاح'], 200);
         }
+
+
+        // إذا كان المالك هو من يقوم بالإلغاء: حفظ السبب وتغيير الحالة في السجل الأصلي
+        $reservation->status = 'cancelled';
+        $reservation->cancellation_reason = $request->input('reason', 'لم يتم تحديد السبب');
+        $reservation->save();
+
+        // نقل السجل إلى جدول الحجوزات الملغاة
+        \App\Models\BookStadiumCanceledReservation::create([
+            'userauth_id' => $reservation->userauth_id,
+            'createstadium_id' => $reservation->createstadium_id,
+            'start_time' => $reservation->start_time,
+            'end_time' => $reservation->end_time,
+            'booking_type' => $reservation->booking_type,
+            'players_count' => $reservation->players_count,
+            'remaining_players' => $reservation->remaining_players,
+            'teams_count' => $reservation->teams_count,
+            'min_players_per_team' => $reservation->min_players_per_team,
+            'total_price' => $reservation->total_price,
+            'remaining_teams' => $reservation->remaining_teams,
+            'status' => $reservation->status,
+            'cancellation_reason' => $reservation->cancellation_reason,
+            'date' => $reservation->date,
+            'player_price' => $reservation->player_price,
+            'created_at' => $reservation->created_at,
+            'updated_at' => now(),
+        ]);
+
+        // حذف السجل الأصلي بعد النقل
+        $reservation->delete();
+
+        return response()->json([
+            'message' => 'تم إلغاء الحجز ونقله إلى الحجوزات الملغاة بنجاح',
+            'status' => 'cancelled'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'حدث خطأ: ' . $e->getMessage()], 500);
     }
+}
+
 
 
 

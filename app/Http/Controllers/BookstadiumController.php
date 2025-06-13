@@ -404,7 +404,8 @@ $query = BookStadium::with([
         $query->select('id', 'name_ar', 'name_en');
     },
     'stadium.rates',
-])->where(function ($q) {
+])->where('status', '!=', 'completed')  // <== الشرط ده يمنع عرض الحجوزات المكتملة
+  ->where(function ($q) {
     $q->where('booking_type', 'individual')
       ->orWhere(function ($subQ) {
           $subQ->where('booking_type', 'team')
