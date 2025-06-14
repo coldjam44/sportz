@@ -19,27 +19,27 @@ class UserstoreController extends Controller
     {
         $this->middleware('auth:api'); // التأكد من أن التوكن صالح
     }
-public function index()
-{
+    public function index()
+    {
 
-    $ratesSummary = userstore::select( \DB::raw('COUNT(rate) as total_rates'))
+        $ratesSummary = userstore::select(\DB::raw('COUNT(rate) as total_rates'))
 
-    ->get();
-    // جلب جميع التسهيلات
-    $userstores = userstore::all();
+            ->get();
+        // جلب جميع التسهيلات
+        $userstores = userstore::all();
 
-    // تحويل الصورة إلى رابط كامل
-    $userstores = $userstores->map(function ($userstore) {
-        // إذا كانت صورة موجودة، يتم تحويلها إلى رابط كامل
-        if ($userstore->image) {
-            $userstore->image = url('userstore/' . $userstore->image);
-        }
-        return $userstore;
-    });
+        // تحويل الصورة إلى رابط كامل
+        $userstores = $userstores->map(function ($userstore) {
+            // إذا كانت صورة موجودة، يتم تحويلها إلى رابط كامل
+            if ($userstore->image) {
+                $userstore->image = url('userstore/' . $userstore->image);
+            }
+            return $userstore;
+        });
 
-    // إرجاع البيانات مع الروابط
-    return $this->returnData('userstore', $userstores);
-}
+        // إرجاع البيانات مع الروابط
+        return $this->returnData('userstore', $userstores);
+    }
 
 
     public function store(Request $request)
@@ -51,7 +51,7 @@ public function index()
             'section_id' => 'required|exists:sections,id',
             'rate' => 'required',
 
-        ],[
+        ], [
             'name_en.required' => 'English Name is required',
             'name_ar.required' => 'Arabic Name is required',
             //'image.required' => 'Image is required',
@@ -59,20 +59,20 @@ public function index()
             'rate.required' => 'The rate field is required.',
 
         ]);
-        try{
-        $userstore=new userstore();
-        $userstore->name_en=$request->name_en;
-        $userstore->name_ar=$request->name_ar;
-        $userstore->section_id=$request->section_id;
-        $userstore->rate=$request->rate;
-        $image = $request->image;
-        $imagename = time() . '.' . $image->getClientOriginalExtension();
-        $request->image->move(public_path('userstore'), $imagename);
-        $userstore->image=$imagename;
-        $userstore->save();
-        return $this->returnData('userstore',$userstore);
-        }catch(\Exception $e){
-            return $this->returnError('E001','error');
+        try {
+            $userstore = new userstore();
+            $userstore->name_en = $request->name_en;
+            $userstore->name_ar = $request->name_ar;
+            $userstore->section_id = $request->section_id;
+            $userstore->rate = $request->rate;
+            $image = $request->image;
+            $imagename = time() . '.' . $image->getClientOriginalExtension();
+            $request->image->move(public_path('userstore'), $imagename);
+            $userstore->image = $imagename;
+            $userstore->save();
+            return $this->returnData('userstore', $userstore);
+        } catch (\Exception $e) {
+            return $this->returnError('E001', 'error');
         }
     }
 
@@ -85,7 +85,7 @@ public function index()
             'rate' => 'required',
 
             //'image' => 'nullable|image', // الصورة اختيارية
-        ],[
+        ], [
             'name_en.required' => 'English Name is required',
             'name_ar.required' => 'Arabic Name is required',
             'section_id.required' => 'Section ID is required',
@@ -123,7 +123,6 @@ public function index()
 
             // إعادة البيانات بعد التحديث
             return $this->returnData('userstore', $userstore);
-
         } catch (\Exception $e) {
             return $this->returnError('E001', 'Error: ' . $e->getMessage());
         }
@@ -162,23 +161,14 @@ public function index()
         }
     }
 
-
-   
-
-
-
-
-
-
-
     public function destroy($id)
     {
-        $userstore=userstore::find($id);
+        $userstore = userstore::find($id);
         $userstore->delete();
-        if(!$userstore){
-            return $this->returnError('E001','data not found');
-        }else{
+        if (!$userstore) {
+            return $this->returnError('E001', 'data not found');
+        } else {
             return $this->returnSuccessMessage('data deleted');
-        }    }
+        }
+    }
 }
-

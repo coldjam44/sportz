@@ -26,4 +26,9 @@ class section extends Model
         return $this->belongsTo(providerauth::class, 'providerauth_id');
     }
 
+public function storeSection()
+{
+    return $this->hasOne(StoreSection::class, 'section_id');
+}
+
 }
