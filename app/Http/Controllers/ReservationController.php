@@ -494,7 +494,7 @@ class ReservationController extends Controller
         ]);
 
         // حذف السجل الأصلي بعد النقل
-        $reservation->delete();
+       // $reservation->delete();
 
         return response()->json([
             'message' => 'تم إلغاء الحجز ونقله إلى الحجوزات الملغاة بنجاح',

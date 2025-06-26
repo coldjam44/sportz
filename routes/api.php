@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CartController;
@@ -23,6 +22,7 @@ use App\Http\Controllers\Apis\ProviderrateController;
 use App\Http\Controllers\Apis\CreatestadiumController;
 use App\Http\Controllers\Apis\AvilableserviceController;
 use App\Http\Controllers\TimeCalculationController;
+use App\Http\Controllers\NotificationController;
 // use App\Http\Controllers\Apis\AuthController;
 /*
 |--------------------------------------------------------------------------
@@ -40,6 +40,11 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 Route::post('register', [AuthController::class, 'register']);
 Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+
+Route::post('usrotp', [AuthController::class, 'usrotp']);
+
+Route::post('prvotp', [AuthController::class, 'prvotp']);
+
 Route::middleware('auth:api')->post('/user/signup', [UserauthController::class, 'signup']);
 Route::middleware('auth:api')->post('/user/editprofile/{id}', [UserauthController::class, 'updateuser']);
 Route::middleware('auth:api')->get('/user/index', [UserauthController::class, 'index']);
@@ -150,4 +155,4 @@ Route::middleware('auth:api')->get('user/all-products', [CreatestoreController::
 Route::middleware('auth:api')->get('store/{store_id}', [CreatestoreController::class, 'getStoreDetails']);
 Route::middleware('auth:api')->get('user/productdeatials/{product_id}', [CreatestoreController::class, 'getProductDetails']);
 Route::post('/time-details', [TimeCalculationController::class, 'calculateTime']);
- 
+Route::get('/test-login', [NotificationController::class, 'testLogin']);

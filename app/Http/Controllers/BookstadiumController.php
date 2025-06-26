@@ -25,12 +25,13 @@ class BookstadiumController extends Controller
 
             $perPage = $request->input('per_page', 10);
             $sport_id = $request->query('sport_id');
-            $location = $request->query('stadium_location'); // 👈 هنا
+            $location = $request->query('stadium_location');
             $minRate = $request->query('min_rate');
             $maxRate = $request->query('max_rate');
 
             $query = CreateStadium::with(['sportsuser', 'rates', 'avilableservice'])
-                ->withAvg('rates as average_rate', 'rate');
+                ->withAvg('rates as average_rate', 'rate')
+                ->where('is_hidden', 0);  // إخفاء الملاعب المخفية
 
             if ($sport_id) {
                 $query->whereHas('sportsuser', function ($q) use ($sport_id) {
@@ -93,6 +94,7 @@ class BookstadiumController extends Controller
             return response()->json(['message' => 'حدث خطأ: ' . $e->getMessage()], 500);
         }
     }
+
 
 
     public function getStadiumDetails(Request $request, $id)
@@ -395,43 +397,28 @@ class BookstadiumController extends Controller
 
 
 
-$query = BookStadium::with([
-    'stadium' => function ($query) {
-        $query->select('id', 'name', 'location', 'image', 'team_members_count', 'sportsuser_id')
-            ->withAvg('rates as average_rate', 'rate');
-    },
-    'stadium.sportsuser' => function ($query) {
-        $query->select('id', 'name_ar', 'name_en');
-    },
-    'stadium.rates',
-])->where('status', '!=', 'completed')  // <== الشرط ده يمنع عرض الحجوزات المكتملة
-  ->where(function ($q) {
-    $q->where('booking_type', 'individual')
-      ->orWhere(function ($subQ) {
-          $subQ->where('booking_type', 'team')
-                ->where('remaining_teams', '>', 0)
-                ->whereColumn('remaining_players', '<', 'min_players_per_team'); // الفرق ناقصة لاعبين
-      });
-});
+        $query = BookStadium::with([
+            'stadium' => function ($query) {
+                $query->select('id', 'name', 'location', 'image', 'team_members_count', 'sportsuser_id')
+                    ->withAvg('rates as average_rate', 'rate');
+            },
+            'stadium.sportsuser' => function ($query) {
+                $query->select('id', 'name_ar', 'name_en');
+            },
+            'stadium.rates',
+        ])->whereNotIn('status', ['completed', 'cancelled'])
+            // <== الشرط ده يمنع عرض الحجوزات المكتملة
+            ->where(function ($q) {
+                $q->where('booking_type', 'individual')
+                    ->orWhere(function ($subQ) {
+                        $subQ->where('booking_type', 'team')
+                            ->where('remaining_teams', '>', 0)
+                            ->whereColumn('remaining_players', '<', 'min_players_per_team'); // الفرق ناقصة لاعبين
+                    });
+            });
 
 
-        // $query = BookStadium::with([
-        //     'stadium' => function ($query) {
-        //         $query->select('id', 'name', 'location', 'image', 'team_members_count', 'sportsuser_id')
-        //             ->withAvg('rates as average_rate', 'rate');
-        //     },
-        //     'stadium.sportsuser' => function ($query) {
-        //         $query->select('id', 'name_ar', 'name_en');
-        //     },
-        //     'stadium.rates',
-        // ])->where(function ($q) {
-        //     $q->where('booking_type', 'individual')
-        //         ->orWhere(function ($subQ) {
-        //             $subQ->where('booking_type', 'team')
-        //                 ->where('remaining_teams', '>', 0); // ✅ الفرق غير مكتملة فقط
-        //         });
-        // });
-        
+
 
         if ($sportId) {
             $query->whereHas('stadium', function ($q) use ($sportId) {
@@ -477,7 +464,6 @@ $query = BookStadium::with([
                 'date' => $booking->date,
                 'created_at' => $booking->created_at->format('H:i'),
                 'remaining_players' => $remainingPlayers,
-                //'player_price' => $teamMembersCount > 0 ? round($booking->total_price / $teamMembersCount, 2) : 0,
                 'player_price' => ($booking->players_count + $booking->remaining_players) > 0
                     ? round($booking->total_price / ($booking->players_count + $booking->remaining_players), 2)
                     : 0,
@@ -638,38 +624,20 @@ $query = BookStadium::with([
         $minRate = $request->input('min_rate');
         $maxRate = $request->input('max_rate');
 
-  $query = BookStadium::with([
-    'stadium' => function ($query) {
-        $query->select('id', 'name', 'location', 'image', 'team_members_count', 'sportsuser_id')
-            ->withAvg('rates as average_rate', 'rate');
-    },
-    'stadium.sportsuser' => function ($query) {
-        $query->select('id', 'name_ar', 'name_en');
-    },
-    'stadium.rates',
-])
-->where('booking_type', 'team')
-->where('remaining_teams', '>', 0) // فيه فرق متبقية
-->whereColumn('remaining_players', '>=', 'min_players_per_team') // الفرق متكاملة لاعبين
-->where('status', '!=', 'cancelled'); // الحالة ليست ملغاة
-
-       
-        // $query = BookStadium::with([
-        //     'stadium' => function ($query) {
-        //         $query->select('id', 'name', 'location', 'image', 'team_members_count', 'sportsuser_id')
-        //             ->withAvg('rates as average_rate', 'rate');
-        //     },
-        //     'stadium.sportsuser' => function ($query) {
-        //         $query->select('id', 'name_ar', 'name_en');
-        //     },
-        //     'stadium.rates',
-        // ])->where('booking_type', 'team')
-        //     ->where(function ($q) {
-        //         $q->whereNull('remaining_teams')
-        //             ->orWhere('remaining_teams', '>', 0);
-        //     });
-
-
+        $query = BookStadium::with([
+            'stadium' => function ($query) {
+                $query->select('id', 'name', 'location', 'image', 'team_members_count', 'sportsuser_id')
+                    ->withAvg('rates as average_rate', 'rate');
+            },
+            'stadium.sportsuser' => function ($query) {
+                $query->select('id', 'name_ar', 'name_en');
+            },
+            'stadium.rates',
+        ])
+            ->where('booking_type', 'team')
+            ->where('remaining_teams', '>', 0) // فيه فرق متبقية
+            ->whereColumn('remaining_players', '>=', 'min_players_per_team') // الفرق متكاملة لاعبين
+            ->where('status', '!=', 'cancelled'); // الحالة ليست ملغاة
 
         if ($sportId) {
             $query->whereHas('stadium', function ($q) use ($sportId) {
@@ -715,7 +683,7 @@ $query = BookStadium::with([
                 'end_time' => $booking->end_time,
                 'booking_type' => $booking->booking_type,
                 'total_price' => $booking->total_price,
-                'price_per_player' => $pricePerPlayer,
+                //'price_per_player' => $pricePerPlayer,
                 'remaining_teams' => $booking->remaining_teams ?? 1,
                 'date' => $booking->date,
                 'created_at' => $booking->created_at->format('H:i'),
@@ -836,7 +804,6 @@ $query = BookStadium::with([
         }
     }
 
-
     public function getStadiumReservations(Request $request, $stadium_id)
     {
         try {
@@ -854,35 +821,42 @@ $query = BookStadium::with([
                 // جلب جميع الحجوزات لهذا الملعب في التاريخ المحدد والتي ليست ملغاة
                 $reservations = BookStadium::where('createstadium_id', $stadium_id)
                     ->whereDate('date', $date)
-                    ->where('status', '!=', 'cancelled') // ✅ استبعاد الملغاة
+                    ->where('status', '!=', 'cancelled')
                     ->with('user')
                     ->get()
                     ->map(function ($booking) use ($stadium) {
+
                         $start_time = Carbon::parse($booking->start_time);
                         $end_time = Carbon::parse($booking->end_time);
-                        $total_hours = $start_time->diffInHours($end_time);
 
-                        // أوقات النهار والليل
-                        $morning_start = (int) $stadium->morning_start_time;
-                        $morning_end = (int) $stadium->morning_end_time;
-                        $evening_start = (int) $stadium->evening_start_time;
-                        $evening_end = (int) $stadium->evening_end_time;
+                        // التعامل مع الحجز الذي يمتد بعد منتصف الليل
+                        if ($end_time->lessThanOrEqualTo($start_time)) {
+                            $end_time->addDay();
+                        }
+
+                        $total_hours = $start_time->diffInHours($end_time);
 
                         // أسعار الساعة
                         $day_price_per_hour = (float) $stadium->booking_price;
                         $night_price_per_hour = (float) $stadium->evening_extra_price_per_hour;
 
-                        $day_hours = 0;
-                        $night_hours = 0;
+                        // تحضير بيانات طلب لحساب الوقت النهاري والليلي عبر دالة calculateTime
+                        $timeCalcRequest = new Request([
+                            'selectedStartTime' => $start_time->format('H:i'),
+                            'selectedEndTime' => $end_time->format('H:i'),
+                            'startMorningTime' => $stadium->morning_start_time,
+                            'endMorningTime' => $stadium->morning_end_time,
+                            'startEveningTime' => $stadium->evening_start_time,
+                            'endEveningTime' => $stadium->evening_end_time,
+                        ]);
 
-                        // حساب عدد الساعات النهارية والليلية
-                        for ($hour = $start_time->hour; $hour < $end_time->hour; $hour++) {
-                            if ($hour >= $morning_start && $hour < $morning_end) {
-                                $day_hours++;
-                            } else {
-                                $night_hours++;
-                            }
-                        }
+                        $timeCalculationController = new TimeCalculationController();
+                        $response = $timeCalculationController->calculateTime($timeCalcRequest);
+
+                        $timeCalculationData = json_decode($response->getContent(), true);
+
+                        $day_hours = $timeCalculationData['morningHours'] ?? 0;
+                        $night_hours = $timeCalculationData['eveningHours'] ?? 0;
 
                         // حساب التكلفة
                         $day_total_price = $day_hours * $day_price_per_hour;
@@ -917,14 +891,20 @@ $query = BookStadium::with([
                 return response()->json($reservations, 200);
             }
 
-            // في حالة عدم إدخال تاريخ، إرجاع جميع التواريخ الفريدة للحجوزات غير الملغاة
+            // في حالة عدم إدخال تاريخ، إرجاع فقط التواريخ >= اليوم
+            $today = Carbon::today();
+
             $dates = BookStadium::where('createstadium_id', $stadium_id)
-                ->where('status', '!=', 'cancelled') // ✅ استبعاد الملغاة
+                ->where('status', '!=', 'cancelled')
                 ->pluck('date')
                 ->map(function ($date) {
                     return Carbon::parse($date)->format('Y-m-d');
                 })
+                ->filter(function ($date) use ($today) {
+                    return Carbon::parse($date)->greaterThanOrEqualTo($today);
+                })
                 ->unique()
+                ->sort()
                 ->values();
 
             return response()->json($dates, 200);
@@ -934,9 +914,6 @@ $query = BookStadium::with([
             ], 500);
         }
     }
-
-
-
 
     public function getIndividualBookingById(Request $request, $id)
     {
@@ -958,10 +935,13 @@ $query = BookStadium::with([
 
         $stadium = $booking->stadium;
         $sport = $stadium->sportsuser ?? null;
-        $teamMembersCount = $stadium?->team_members_count ?? 0;
 
         // استخدام القيمة المخزنة لـ remaining_players
         $remainingPlayers = $booking->remaining_players;
+
+        // حساب player_price بنفس طريقة الدالة getIndividualBookings
+        $totalPlayers = $booking->players_count + $remainingPlayers;
+        $playerPrice = $totalPlayers > 0 ? round($booking->total_price / $totalPlayers, 2) : 0;
 
         $bookingData = [
             'id' => $booking->id,
@@ -975,12 +955,12 @@ $query = BookStadium::with([
             'date' => $booking->date,
             'created_at' => $booking->created_at->format('H:i'),
             'remaining_players' => $remainingPlayers,
-            'player_price' => $teamMembersCount > 0 ? round($booking->total_price / $teamMembersCount, 2) : 0,
+            'player_price' => $playerPrice,
 
             'stadium_name' => $stadium?->name,
             'stadium_location' => $stadium?->location,
             'stadium_image_url' => $stadium && $stadium->image ? asset($stadium->image) : null,
-            'stadium_team_members_count' => $teamMembersCount,
+            'stadium_team_members_count' => $stadium?->team_members_count ?? 0,
 
             'average_rate' => round($stadium->average_rate ?? 0, 2),
             'ratings_count' => $stadium && $stadium->rates ? $stadium->rates->count() : 0,
@@ -997,6 +977,65 @@ $query = BookStadium::with([
 
 
 
+    // public function getIndividualBookingById(Request $request, $id)
+    // {
+    //     $booking = BookStadium::with([
+    //         'stadium' => function ($query) {
+    //             $query->select('id', 'name', 'location', 'image', 'team_members_count', 'sportsuser_id')
+    //                 ->withAvg('rates as average_rate', 'rate');
+    //         },
+    //         'stadium.sportsuser' => function ($query) {
+    //             $query->select('id', 'name_ar', 'name_en');
+    //         },
+    //         'stadium.rates',
+    //     ])->where('booking_type', 'individual')
+    //         ->find($id);
+
+    //     if (!$booking) {
+    //         return response()->json(['message' => 'الحجز غير موجود'], 404);
+    //     }
+
+    //     $stadium = $booking->stadium;
+    //     $sport = $stadium->sportsuser ?? null;
+    //     $teamMembersCount = $stadium?->team_members_count ?? 0;
+
+    //     // استخدام القيمة المخزنة لـ remaining_players
+    //     $remainingPlayers = $booking->remaining_players;
+
+    //     $bookingData = [
+    //         'id' => $booking->id,
+    //         'userauth_id' => $booking->userauth_id,
+    //         'createstadium_id' => $booking->createstadium_id,
+    //         'start_time' => $booking->start_time,
+    //         'end_time' => $booking->end_time,
+    //         'booking_type' => $booking->booking_type,
+    //         'total_price' => $booking->total_price,
+    //         'players_count' => $booking->players_count,
+    //         'date' => $booking->date,
+    //         'created_at' => $booking->created_at->format('H:i'),
+    //         'remaining_players' => $remainingPlayers,
+    //         'player_price' => $teamMembersCount > 0 ? round($booking->total_price / $teamMembersCount, 2) : 0,
+
+    //         'stadium_name' => $stadium?->name,
+    //         'stadium_location' => $stadium?->location,
+    //         'stadium_image_url' => $stadium && $stadium->image ? asset($stadium->image) : null,
+    //         'stadium_team_members_count' => $teamMembersCount,
+
+    //         'average_rate' => round($stadium->average_rate ?? 0, 2),
+    //         'ratings_count' => $stadium && $stadium->rates ? $stadium->rates->count() : 0,
+
+    //         'sport_id' => $sport?->id,
+    //         'sportname_ar' => $sport?->name_ar,
+    //         'sportname_en' => $sport?->name_en,
+    //     ];
+
+    //     return response()->json([
+    //         'data' => $bookingData,
+    //     ]);
+    // }
+
+
+
     public function getTeamBookingById(Request $request, $id)
     {
         $booking = BookStadium::with([
@@ -1009,7 +1048,6 @@ $query = BookStadium::with([
             },
             'stadium.rates',
         ])->where('booking_type', 'team')
-            ->whereNull('players_count')
             ->find($id);
 
         if (!$booking) {
@@ -1021,6 +1059,7 @@ $query = BookStadium::with([
 
         $teamMembersCount = max($stadium?->team_members_count ?? 1, 1);
         $pricePerPlayer = round($booking->total_price / $teamMembersCount, 2);
+        $pricePerTeam = $booking->teams_count > 0 ? round($booking->total_price / $booking->teams_count, 2) : 0;
 
         $bookingData = [
             'id' => $booking->id,
@@ -1031,6 +1070,7 @@ $query = BookStadium::with([
             'booking_type' => $booking->booking_type,
             'total_price' => $booking->total_price,
             'price_per_player' => $pricePerPlayer,
+            'price_per_team' => $pricePerTeam,
             'remaining_teams' => $booking->remaining_teams ?? 1,
             'date' => $booking->date,
             'created_at' => $booking->created_at->format('H:i'),

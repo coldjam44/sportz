@@ -63,84 +63,193 @@ class CartController extends Controller
 
 
 
-    public function getCart()
-    {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
+public function getCart()
+{
+    try {
+        $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user) {
-                return response()->json(['message' => 'Unauthorized'], 401);
-            }
-
-            $userauth = Userauth::where('phone', $user->phone_number)->first();
-
-            if (!$userauth) {
-                return response()->json(['message' => 'User authentication not found'], 404);
-            }
-
-            $cartItems = Cart::where('userauth_id', $userauth->id)
-                ->with(['product.section'])
-                ->get();
-
-            if ($cartItems->isEmpty()) {
-                return response()->json(['message' => 'السلة فارغة'], 200);
-            }
-
-            $favouriteProductIds = Favourite::where('userauth_id', $userauth->id)
-                ->pluck('product_id')
-                ->toArray();
-
-            $transformedCart = [];
-            $total = 0;
-
-            foreach ($cartItems as $item) {
-                $product = $item->product;
-
-                // تحويل السعر والخصم لأرقام للتأكد من الحسابات
-                $price = floatval($product->price);
-                $discount = floatval($product->discount);
-
-                // السعر بعد الخصم
-                $discountedPrice = $price - ($price * ($discount / 100));
-
-                // إجمالي لهذا المنتج
-                $productTotal = $discountedPrice * $item->quantity;
-
-                $total += $productTotal;
-
-                // الصور
-                $images = json_decode($product->image);
-                $imageUrls = array_map(fn($img) => url('addproducts/' . $img), $images);
-
-                $transformedCart[] = [
-                    'cart_id' => $item->id,
-                    'id' => $product->id,
-                    'name_ar' => $product->name_ar,
-                    'name_en' => $product->name_en,
-                    'description_ar' => $product->description_ar,
-                    'description_en' => $product->description_en,
-                    'price' => $price,
-                    'discount' => $discount,
-                    'image_urls' => $imageUrls,
-                    'section_name_ar' => optional($product->section)->name_ar,
-                    'section_name_en' => optional($product->section)->name_en,
-                    'section_id' => optional($product->section)->id,  // Added section ID here
-                    'in_cart' => true,
-                    'in_favourite' => in_array($product->id, $favouriteProductIds),
-                    'quantity' => $item->quantity,
-                ];
-            }
-
-            return response()->json([
-                'status' => true,
-                'message' => 'محتويات السلة',
-                'data' => $transformedCart,
-                'total' => number_format($total, 2)
-            ]);
-        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-            return response()->json(['error' => 'Token is invalid or expired'], 400);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
+
+        $userauth = Userauth::where('phone', $user->phone_number)->first();
+
+        if (!$userauth) {
+            return response()->json(['message' => 'User authentication not found'], 404);
+        }
+
+        $cartItems = Cart::where('userauth_id', $userauth->id)
+            ->with(['product.section'])
+            ->get();
+
+        if ($cartItems->isEmpty()) {
+            return response()->json(['message' => 'السلة فارغة'], 200);
+        }
+
+        $favouriteProductIds = Favourite::where('userauth_id', $userauth->id)
+            ->pluck('product_id')
+            ->toArray();
+
+        $transformedCart = [];
+        $total = 0;
+        $now = \Carbon\Carbon::now();
+
+        foreach ($cartItems as $item) {
+            $product = $item->product;
+
+            // تحويل السعر والخصم لأرقام للتأكد من الحسابات
+            $price = floatval($product->price);
+            $discount = floatval($product->discount);
+
+            // معالجة فترة الخصم
+            $startDiscount = $product->start_time ? \Carbon\Carbon::parse($product->start_time) : null;
+            $endDiscount = $product->end_time ? \Carbon\Carbon::parse($product->end_time) : null;
+
+            $discountDetails = "لا يوجد خصم";
+
+            if ($startDiscount && $endDiscount) {
+                if ($now->lt($startDiscount)) {
+                    // قبل بداية الخصم
+                    $discount = null;
+                    $product->start_time = null;
+                    $product->end_time = null;
+                    $discountDetails = "الخصم سيبدأ من " . $startDiscount->toDateString();
+                } elseif ($now->gt($endDiscount)) {
+                    // بعد انتهاء الخصم
+                    $discount = null;
+                    $product->start_time = null;
+                    $product->end_time = null;
+                    $discountDetails = "انتهت فترة الخصم بتاريخ " . $endDiscount->toDateString();
+                } else {
+                    // خلال فترة الخصم
+                    $discountDetails = "الخصم ساري من " . $startDiscount->toDateString() . " إلى " . $endDiscount->toDateString();
+                }
+            }
+
+            // السعر بعد الخصم
+            $discountedPrice = $discount ? $price - ($price * ($discount / 100)) : $price;
+
+            // إجمالي لهذا المنتج
+            $productTotal = $discountedPrice * $item->quantity;
+
+            $total += $productTotal;
+
+            // الصور
+            $images = json_decode($product->image);
+            $imageUrls = is_array($images) ? array_map(fn($img) => url('addproducts/' . ltrim($img, '/')), $images) : [];
+
+            $transformedCart[] = [
+                'cart_id' => $item->id,
+                'id' => $product->id,
+                'name_ar' => $product->name_ar,
+                'name_en' => $product->name_en,
+                'description_ar' => $product->description_ar,
+                'description_en' => $product->description_en,
+                'price' => $price,
+                'discount' => $discount,
+                'start_time' => $product->start_time,
+                'end_time' => $product->end_time,
+                'discount_details' => $discountDetails,
+                'image_urls' => $imageUrls,
+                'section_name_ar' => optional($product->section)->name_ar,
+                'section_name_en' => optional($product->section)->name_en,
+                'section_id' => optional($product->section)->id,
+                'in_cart' => true,
+                'in_favourite' => in_array($product->id, $favouriteProductIds),
+                'quantity' => $item->quantity,
+            ];
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'محتويات السلة',
+            'data' => $transformedCart,
+            'total' => number_format($total, 2)
+        ]);
+    } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+        return response()->json(['error' => 'Token is invalid or expired'], 400);
     }
+}
+
+
+    // public function getCart()
+    // {
+    //     try {
+    //         $user = JWTAuth::parseToken()->authenticate();
+
+    //         if (!$user) {
+    //             return response()->json(['message' => 'Unauthorized'], 401);
+    //         }
+
+    //         $userauth = Userauth::where('phone', $user->phone_number)->first();
+
+    //         if (!$userauth) {
+    //             return response()->json(['message' => 'User authentication not found'], 404);
+    //         }
+
+    //         $cartItems = Cart::where('userauth_id', $userauth->id)
+    //             ->with(['product.section'])
+    //             ->get();
+
+    //         if ($cartItems->isEmpty()) {
+    //             return response()->json(['message' => 'السلة فارغة'], 200);
+    //         }
+
+    //         $favouriteProductIds = Favourite::where('userauth_id', $userauth->id)
+    //             ->pluck('product_id')
+    //             ->toArray();
+
+    //         $transformedCart = [];
+    //         $total = 0;
+
+    //         foreach ($cartItems as $item) {
+    //             $product = $item->product;
+
+    //             // تحويل السعر والخصم لأرقام للتأكد من الحسابات
+    //             $price = floatval($product->price);
+    //             $discount = floatval($product->discount);
+
+    //             // السعر بعد الخصم
+    //             $discountedPrice = $price - ($price * ($discount / 100));
+
+    //             // إجمالي لهذا المنتج
+    //             $productTotal = $discountedPrice * $item->quantity;
+
+    //             $total += $productTotal;
+
+    //             // الصور
+    //             $images = json_decode($product->image);
+    //             $imageUrls = array_map(fn($img) => url('addproducts/' . $img), $images);
+
+    //             $transformedCart[] = [
+    //                 'cart_id' => $item->id,
+    //                 'id' => $product->id,
+    //                 'name_ar' => $product->name_ar,
+    //                 'name_en' => $product->name_en,
+    //                 'description_ar' => $product->description_ar,
+    //                 'description_en' => $product->description_en,
+    //                 'price' => $price,
+    //                 'discount' => $discount,
+    //                 'image_urls' => $imageUrls,
+    //                 'section_name_ar' => optional($product->section)->name_ar,
+    //                 'section_name_en' => optional($product->section)->name_en,
+    //                 'section_id' => optional($product->section)->id,  // Added section ID here
+    //                 'in_cart' => true,
+    //                 'in_favourite' => in_array($product->id, $favouriteProductIds),
+    //                 'quantity' => $item->quantity,
+    //             ];
+    //         }
+
+    //         return response()->json([
+    //             'status' => true,
+    //             'message' => 'محتويات السلة',
+    //             'data' => $transformedCart,
+    //             'total' => number_format($total, 2)
+    //         ]);
+    //     } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+    //         return response()->json(['error' => 'Token is invalid or expired'], 400);
+    //     }
+    // }
 
 
 
