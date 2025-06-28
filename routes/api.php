@@ -46,10 +46,10 @@ Route::post('usrotp', [AuthController::class, 'usrotp']);
 Route::post('prvotp', [AuthController::class, 'prvotp']);
 
 Route::middleware('auth:api')->post('/user/signup', [UserauthController::class, 'signup']);
-Route::middleware('auth:api')->post('/user/editprofile/{id}', [UserauthController::class, 'updateuser']);
+Route::middleware('auth:api')->post('/user/editprofile/{id}', [UserauthController::class, 'updateuser']); //hasNotification
 Route::middleware('auth:api')->get('/user/index', [UserauthController::class, 'index']);
-Route::middleware('auth:api')->post('/provider/editprofile/{id}', [ProviderauthController::class, 'update']);
-Route::middleware('auth:api')->post('/provider/signup', [ProviderauthController::class, 'signup']);
+Route::middleware('auth:api')->post('/provider/editprofile/{id}', [ProviderauthController::class, 'update']);//hasNotification
+Route::middleware('auth:api')->post('/provider/signup', [ProviderauthController::class, 'signup']);//hasNotification
 Route::middleware('auth:api')->get('/provider/index', [ProviderauthController::class, 'index']);
 Route::middleware('auth:api')->post('/provider/logout', [ProviderauthController::class, 'logout']);
 Route::middleware('auth:api')->post('/provider/delete-account', [ProviderauthController::class, 'deleteAccount']);
@@ -155,4 +155,11 @@ Route::middleware('auth:api')->get('user/all-products', [CreatestoreController::
 Route::middleware('auth:api')->get('store/{store_id}', [CreatestoreController::class, 'getStoreDetails']);
 Route::middleware('auth:api')->get('user/productdeatials/{product_id}', [CreatestoreController::class, 'getProductDetails']);
 Route::post('/time-details', [TimeCalculationController::class, 'calculateTime']);
-Route::get('/test-login', [NotificationController::class, 'testLogin']);
+Route::middleware('auth:api')->group(function () {
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications', [NotificationController::class, 'store']);
+    Route::get('notifications/{notification}', [NotificationController::class, 'show']);
+    Route::put('notifications/{notification}', [NotificationController::class, 'update']);
+    Route::patch('notifications/{notification}', [NotificationController::class, 'update']);
+    Route::delete('notifications/{notification}', [NotificationController::class, 'destroy']);
+});

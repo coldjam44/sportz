@@ -1,43 +1,87 @@
 <?php
+
 namespace App\Http\Controllers;
 
+use App\Models\Notification;
 use Illuminate\Http\Request;
-use Tymon\JWTAuth\Facades\JWTAuth;
-use App\Models\User;
-use App\Models\providerauth;
 
 class NotificationController extends Controller
 {
-    public function testLogin(Request $request)
+    // عرض كل الإشعارات
+    public function index()
+{
+    // جلب المستخدم الحالي من التوكن JWT
+    $user = auth()->user();
+
+    if (!$user) {
+        return response()->json(['message' => 'غير مصرح'], 401);
+    }
+
+    // جلب الإشعارات الخاصة بالمستخدم فقط
+    $notifications = Notification::where('user_id', $user->id)
+                                 ->orderBy('created_at', 'desc')
+                                 ->get();
+
+    return response()->json([
+        'message' => 'تم جلب الإشعارات بنجاح',
+        'notifications' => $notifications,
+    ]);
+}
+
+   public function store(Request $request)
+{
+    // تحقق من صحة البيانات المطلوبة بدون user_id من العميل
+    $data = $request->validate([
+        'title' => 'required|string|max:255',
+        'message_ar' => 'required|string',
+        'message_en' => 'nullable|string',
+        'status' => 'nullable|in:new,read',
+    ]);
+
+    // اربط الاشعار بالمستخدم المسجل دخولاً
+    $data['user_id'] = auth()->id();
+
+    // إنشاء الاشعار
+    $notification = Notification::create($data);
+
+    // إرجاع الرد مع حالة 201 (تم الإنشاء)
+    return response()->json($notification, 201);
+}
+
+
+    // عرض إشعار محدد
+    public function show(Notification $notification)
     {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
+        return response()->json($notification);
+    }
 
-            if (!$user) {
-                return response()->json(['message' => 'غير مسجل دخول. الرجاء تسجيل الدخول أولاً.'], 401);
-            }
+    // تعديل إشعار (واجهة التعديل)
+    public function edit(Notification $notification)
+    {
+        //
+    }
 
-            // تأكد من اسم الحقل الصحيح هنا
-            $provider = providerauth::where('phone_number', $user->phone_number)->first();
+    // تحديث إشعار
+    public function update(Request $request, Notification $notification)
+    {
+        $data = $request->validate([
+            'user_id' => 'sometimes|integer',
+            'title' => 'sometimes|string|max:255',
+            'message_ar' => 'sometimes|string',
+            'message_en' => 'nullable|string',
+            'status' => 'nullable|in:new,read',
+        ]);
 
-            if ($provider) {
-                return response()->json([
-                    'message' => 'مسجل دخول كبروفايدر',
-                    'user_type' => 'provider',
-                    'provider' => $provider,
-                ], 200);
-            } else {
-                return response()->json([
-                    'message' => 'مسجل دخول كمستخدم عادي',
-                    'user_type' => 'user',
-                    'user' => $user,
-                ], 200);
-            }
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'غير مسجل دخول. الرجاء تسجيل الدخول أولاً.',
-                'error' => $e->getMessage(),
-            ], 401);
-        }
+        $notification->update($data);
+
+        return response()->json($notification);
+    }
+
+    // حذف إشعار
+    public function destroy(Notification $notification)
+    {
+        $notification->delete();
+
+        return response()->json(null, 204);
     }
 }

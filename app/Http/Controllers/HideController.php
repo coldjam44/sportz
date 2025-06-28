@@ -11,6 +11,9 @@ class HideController extends Controller
 {
     public function hide(Request $request)
     {
+      
+      Log::info('Headers:', $request->headers->all());
+    Log::info('Auth user:', ['user' => Auth::user()]);
         $request->validate([
             'createstore_id' => 'nullable|exists:createstores,id',
             'createstadium_id' => 'nullable|exists:createstadium,id',
