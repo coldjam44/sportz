@@ -1,30 +1,30 @@
 <?php
 
-namespace App\Observers;
+namespace App\Exceptions;
 
-use App\Models\Notification;
-use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Throwable;
 
-class NotificationObserver
+class Handler extends ExceptionHandler
 {
     /**
-     * Handle the Notification "creating" event.
+     * The list of the inputs that are never flashed to the session on validation exceptions.
      *
-     * @param  \App\Models\Notification  $notification
-     * @return void
+     * @var array<int, string>
      */
-    public function creating(Notification $notification)
-    {
-        if (empty($notification->account_type)) {
-            $token = JWTAuth::getToken();
+    protected $dontFlash = [
+        'current_password',
+        'password',
+        'password_confirmation',
+    ];
 
-            if ($token) {
-                $payload = JWTAuth::getPayload($token);
-                $accountType = $payload->get('account_type');
-                $notification->account_type = $accountType !== null ? $accountType : null;
-            } else {
-                $notification->account_type = null;
-            }
-        }
+    /**
+     * Register the exception handling callbacks for the application.
+     */
+    public function register(): void
+    {
+        $this->reportable(function (Throwable $e) {
+            //
+        });
     }
 }

@@ -14,9 +14,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Notification;
-
-
+use App\Models\Notification; // تأكد أنك مستورد الموديل
 class ProviderauthController extends Controller
 {
 
@@ -95,15 +93,14 @@ class ProviderauthController extends Controller
             'phone_number' => $user->phone_number, // استخدام رقم الهاتف من المستخدم المسجل
         ]);
 
-
         Notification::create([
-        'user_id' => $provider->id,
-        'title' => 'تم إنشاء الحساب',
-        'message_ar' => 'تم تسجيل مقدم الخدمة بنجاح.',
-        'message_en' => 'Provider registered successfully.',
-        'status' => 'new',
-        'type' => 'provider_signup',  // اسم مركب معبر
-    ]);
+            'user_id' => $provider->id, // أو حسب الحقل المناسب
+            'title' => 'أهلاً بك!',
+            'message_ar' => 'تم تسجيلك كبروفايدر بنجاح.',
+            'message_en' => 'You have successfully signed up as a provider.',
+            'status' => 'new',
+            'type' => 'provider_signup',
+        ]);
 
         return response()->json([
             'message' => 'Provider registered successfully',
@@ -161,13 +158,14 @@ class ProviderauthController extends Controller
                 ]);
             }
         }
+
         Notification::create([
             'user_id' => $provider->id,
-            'title' => 'تم تحديث الحساب',
-            'message_ar' => 'تم تعديل بيانات مقدم الخدمة بنجاح.',
-            'message_en' => 'Provider profile updated successfully.',
+            'title' => 'تم تحديث بياناتك',
+            'message_ar' => 'تم تعديل ملفك الشخصي بنجاح.',
+            'message_en' => 'Your profile has been updated successfully.',
             'status' => 'new',
-            'type' => 'provider_update',  // اسم مركب مميز واضح
+            'type' => 'provider_profile_update',
         ]);
 
         return response()->json([
@@ -244,6 +242,16 @@ class ProviderauthController extends Controller
 
         // حذف الحساب نفسه
         $provider->delete();
+
+Notification::create([
+    'user_id' => $provider->id,
+    'title' => 'حذف الحساب',
+    'message_ar' => 'تم حذف حسابك بنجاح. نأسف لرحيلك!',
+    'message_en' => 'Your account has been deleted successfully. We’re sorry to see you go!',
+    'status' => 'new',
+    'type' => 'provider_account_delete',
+]);
+
 
         // إبطال التوكن بعد حذف الحساب
         JWTAuth::invalidate(JWTAuth::getToken());

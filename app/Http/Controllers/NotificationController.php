@@ -2,86 +2,110 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Notification;
 use Illuminate\Http\Request;
+use App\Models\Notification;
+use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 {
-    // عرض كل الإشعارات
+    // جلب كل الإشعارات للمستخدم الحالي
     public function index()
-{
-    // جلب المستخدم الحالي من التوكن JWT
-    $user = auth()->user();
+    {
+        $user = Auth::user();
 
-    if (!$user) {
-        return response()->json(['message' => 'غير مصرح'], 401);
+        // جلب الإشعارات الخاصة بالمستخدم
+        $notifications = Notification::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // تحديث حالة كل الإشعارات إلى 'read' لو كانت 'new'
+        Notification::where('user_id', $user->id)
+            ->where('status', 'new')
+            ->update(['status' => 'read']);
+
+        return response()->json($notifications);
     }
 
-    // جلب الإشعارات الخاصة بالمستخدم فقط
-    $notifications = Notification::where('user_id', $user->id)
-                                 ->orderBy('created_at', 'desc')
-                                 ->get();
 
-    return response()->json([
-        'message' => 'تم جلب الإشعارات بنجاح',
-        'notifications' => $notifications,
-    ]);
-}
-
-   public function store(Request $request)
-{
-    // تحقق من صحة البيانات المطلوبة بدون user_id من العميل
-    $data = $request->validate([
-        'title' => 'required|string|max:255',
-        'message_ar' => 'required|string',
-        'message_en' => 'nullable|string',
-        'status' => 'nullable|in:new,read',
-    ]);
-
-    // اربط الاشعار بالمستخدم المسجل دخولاً
-    $data['user_id'] = auth()->id();
-
-    // إنشاء الاشعار
-    $notification = Notification::create($data);
-
-    // إرجاع الرد مع حالة 201 (تم الإنشاء)
-    return response()->json($notification, 201);
-}
-
-
-    // عرض إشعار محدد
-    public function show(Notification $notification)
+    // إنشاء إشعار جديد
+    public function store(Request $request)
     {
-        return response()->json($notification);
-    }
+        $user = Auth::user();
 
-    // تعديل إشعار (واجهة التعديل)
-    public function edit(Notification $notification)
-    {
-        //
-    }
-
-    // تحديث إشعار
-    public function update(Request $request, Notification $notification)
-    {
-        $data = $request->validate([
-            'user_id' => 'sometimes|integer',
-            'title' => 'sometimes|string|max:255',
-            'message_ar' => 'sometimes|string',
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'message_ar' => 'required|string',
             'message_en' => 'nullable|string',
-            'status' => 'nullable|in:new,read',
+            'status' => 'in:new,read', // اختياري، القيمة الافتراضية new
+            'type' => 'nullable|string|max:255',
         ]);
 
-        $notification->update($data);
+        $notification = Notification::create([
+            'user_id' => $user->id,
+            'title' => $request->title,
+            'message_ar' => $request->message_ar,
+            'message_en' => $request->message_en,
+            'status' => $request->status ?? 'new',
+            'type' => $request->type,
+        ]);
+
+        return response()->json([
+            'message' => 'Notification created successfully.',
+            'notification' => $notification,
+        ], 201);
+    }
+
+    // عرض إشعار معين
+    public function show($id)
+    {
+        $user = Auth::user();
+
+        $notification = Notification::where('id', $id)->where('user_id', $user->id)->first();
+
+        if (!$notification) {
+            return response()->json(['error' => 'Notification not found.'], 404);
+        }
 
         return response()->json($notification);
+    }
+
+    // تحديث حالة الإشعار (مثلاً تغييره من 'new' إلى 'read')
+    public function update(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        $notification = Notification::where('id', $id)->where('user_id', $user->id)->first();
+
+        if (!$notification) {
+            return response()->json(['error' => 'Notification not found.'], 404);
+        }
+
+        $request->validate([
+            'status' => 'required|in:new,read',
+        ]);
+
+        $notification->status = $request->status;
+        $notification->save();
+
+        return response()->json([
+            'message' => 'Notification updated successfully.',
+            'notification' => $notification,
+        ]);
     }
 
     // حذف إشعار
-    public function destroy(Notification $notification)
+    public function destroy($id)
     {
+        $user = Auth::user();
+
+        $notification = Notification::where('id', $id)->where('user_id', $user->id)->first();
+
+        if (!$notification) {
+            return response()->json(['error' => 'Notification not found.'], 404);
+        }
+
         $notification->delete();
 
-        return response()->json(null, 204);
+        return response()->json(['message' => 'Notification deleted successfully.']);
     }
 }

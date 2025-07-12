@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
+use App\Models\Notification;
 
 class CartController extends Controller
 {
@@ -45,14 +46,33 @@ class CartController extends Controller
             if ($cartItem) {
                 // تحديث الكمية
                 $cartItem->update(['quantity' => $cartItem->quantity + $request->quantity]);
+
+                // إشعار بتحديث المنتج في السلة
+                Notification::create([
+                    'user_id' => $userauth->id,
+                    'title' => 'تم تحديث المنتج في السلة',
+                    'message_ar' => "تم تحديث كمية المنتج رقم {$request->product_id} في السلة إلى {$cartItem->quantity}",
+                    'message_en' => "Product ID {$request->product_id} quantity updated in cart to {$cartItem->quantity}",
+                    'type' => 'cart_update',
+                ]);
             } else {
                 // إضافة منتج جديد إلى السلة
-                Cart::create([
+                $newCartItem = Cart::create([
                     'userauth_id' => $userauth->id,
                     'product_id' => $request->product_id,
                     'quantity' => $request->quantity
                 ]);
+
+                // إشعار بإضافة منتج جديد للسلة
+                Notification::create([
+                    'user_id' => $userauth->id,
+                    'title' => 'تم إضافة منتج جديد إلى السلة',
+                    'message_ar' => "تم إضافة المنتج رقم {$request->product_id} إلى السلة بكمية {$request->quantity}",
+                    'message_en' => "Product ID {$request->product_id} added to cart with quantity {$request->quantity}",
+                    'type' => 'cart_add',
+                ]);
             }
+
 
             return response()->json(['message' => 'Product added to cart successfully']);
         } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
@@ -63,113 +83,113 @@ class CartController extends Controller
 
 
 
-public function getCart()
-{
-    try {
-        $user = JWTAuth::parseToken()->authenticate();
+    public function getCart()
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
 
-        if (!$user) {
-            return response()->json(['message' => 'Unauthorized'], 401);
-        }
-
-        $userauth = Userauth::where('phone', $user->phone_number)->first();
-
-        if (!$userauth) {
-            return response()->json(['message' => 'User authentication not found'], 404);
-        }
-
-        $cartItems = Cart::where('userauth_id', $userauth->id)
-            ->with(['product.section'])
-            ->get();
-
-        if ($cartItems->isEmpty()) {
-            return response()->json(['message' => 'السلة فارغة'], 200);
-        }
-
-        $favouriteProductIds = Favourite::where('userauth_id', $userauth->id)
-            ->pluck('product_id')
-            ->toArray();
-
-        $transformedCart = [];
-        $total = 0;
-        $now = \Carbon\Carbon::now();
-
-        foreach ($cartItems as $item) {
-            $product = $item->product;
-
-            // تحويل السعر والخصم لأرقام للتأكد من الحسابات
-            $price = floatval($product->price);
-            $discount = floatval($product->discount);
-
-            // معالجة فترة الخصم
-            $startDiscount = $product->start_time ? \Carbon\Carbon::parse($product->start_time) : null;
-            $endDiscount = $product->end_time ? \Carbon\Carbon::parse($product->end_time) : null;
-
-            $discountDetails = "لا يوجد خصم";
-
-            if ($startDiscount && $endDiscount) {
-                if ($now->lt($startDiscount)) {
-                    // قبل بداية الخصم
-                    $discount = null;
-                    $product->start_time = null;
-                    $product->end_time = null;
-                    $discountDetails = "الخصم سيبدأ من " . $startDiscount->toDateString();
-                } elseif ($now->gt($endDiscount)) {
-                    // بعد انتهاء الخصم
-                    $discount = null;
-                    $product->start_time = null;
-                    $product->end_time = null;
-                    $discountDetails = "انتهت فترة الخصم بتاريخ " . $endDiscount->toDateString();
-                } else {
-                    // خلال فترة الخصم
-                    $discountDetails = "الخصم ساري من " . $startDiscount->toDateString() . " إلى " . $endDiscount->toDateString();
-                }
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
             }
 
-            // السعر بعد الخصم
-            $discountedPrice = $discount ? $price - ($price * ($discount / 100)) : $price;
+            $userauth = Userauth::where('phone', $user->phone_number)->first();
 
-            // إجمالي لهذا المنتج
-            $productTotal = $discountedPrice * $item->quantity;
+            if (!$userauth) {
+                return response()->json(['message' => 'User authentication not found'], 404);
+            }
 
-            $total += $productTotal;
+            $cartItems = Cart::where('userauth_id', $userauth->id)
+                ->with(['product.section'])
+                ->get();
 
-            // الصور
-            $images = json_decode($product->image);
-            $imageUrls = is_array($images) ? array_map(fn($img) => url('addproducts/' . ltrim($img, '/')), $images) : [];
+            if ($cartItems->isEmpty()) {
+                return response()->json(['message' => 'السلة فارغة'], 200);
+            }
 
-            $transformedCart[] = [
-                'cart_id' => $item->id,
-                'id' => $product->id,
-                'name_ar' => $product->name_ar,
-                'name_en' => $product->name_en,
-                'description_ar' => $product->description_ar,
-                'description_en' => $product->description_en,
-                'price' => $price,
-                'discount' => $discount,
-                'start_time' => $product->start_time,
-                'end_time' => $product->end_time,
-                'discount_details' => $discountDetails,
-                'image_urls' => $imageUrls,
-                'section_name_ar' => optional($product->section)->name_ar,
-                'section_name_en' => optional($product->section)->name_en,
-                'section_id' => optional($product->section)->id,
-                'in_cart' => true,
-                'in_favourite' => in_array($product->id, $favouriteProductIds),
-                'quantity' => $item->quantity,
-            ];
+            $favouriteProductIds = Favourite::where('userauth_id', $userauth->id)
+                ->pluck('product_id')
+                ->toArray();
+
+            $transformedCart = [];
+            $total = 0;
+            $now = \Carbon\Carbon::now();
+
+            foreach ($cartItems as $item) {
+                $product = $item->product;
+
+                // تحويل السعر والخصم لأرقام للتأكد من الحسابات
+                $price = floatval($product->price);
+                $discount = floatval($product->discount);
+
+                // معالجة فترة الخصم
+                $startDiscount = $product->start_time ? \Carbon\Carbon::parse($product->start_time) : null;
+                $endDiscount = $product->end_time ? \Carbon\Carbon::parse($product->end_time) : null;
+
+                $discountDetails = "لا يوجد خصم";
+
+                if ($startDiscount && $endDiscount) {
+                    if ($now->lt($startDiscount)) {
+                        // قبل بداية الخصم
+                        $discount = null;
+                        $product->start_time = null;
+                        $product->end_time = null;
+                        $discountDetails = "الخصم سيبدأ من " . $startDiscount->toDateString();
+                    } elseif ($now->gt($endDiscount)) {
+                        // بعد انتهاء الخصم
+                        $discount = null;
+                        $product->start_time = null;
+                        $product->end_time = null;
+                        $discountDetails = "انتهت فترة الخصم بتاريخ " . $endDiscount->toDateString();
+                    } else {
+                        // خلال فترة الخصم
+                        $discountDetails = "الخصم ساري من " . $startDiscount->toDateString() . " إلى " . $endDiscount->toDateString();
+                    }
+                }
+
+                // السعر بعد الخصم
+                $discountedPrice = $discount ? $price - ($price * ($discount / 100)) : $price;
+
+                // إجمالي لهذا المنتج
+                $productTotal = $discountedPrice * $item->quantity;
+
+                $total += $productTotal;
+
+                // الصور
+                $images = json_decode($product->image);
+                $imageUrls = is_array($images) ? array_map(fn($img) => url('addproducts/' . ltrim($img, '/')), $images) : [];
+
+                $transformedCart[] = [
+                    'cart_id' => $item->id,
+                    'id' => $product->id,
+                    'name_ar' => $product->name_ar,
+                    'name_en' => $product->name_en,
+                    'description_ar' => $product->description_ar,
+                    'description_en' => $product->description_en,
+                    'price' => $price,
+                    'discount' => $discount,
+                    'start_time' => $product->start_time,
+                    'end_time' => $product->end_time,
+                    'discount_details' => $discountDetails,
+                    'image_urls' => $imageUrls,
+                    'section_name_ar' => optional($product->section)->name_ar,
+                    'section_name_en' => optional($product->section)->name_en,
+                    'section_id' => optional($product->section)->id,
+                    'in_cart' => true,
+                    'in_favourite' => in_array($product->id, $favouriteProductIds),
+                    'quantity' => $item->quantity,
+                ];
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => 'محتويات السلة',
+                'data' => $transformedCart,
+                'total' => number_format($total, 2)
+            ]);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token is invalid or expired'], 400);
         }
-
-        return response()->json([
-            'status' => true,
-            'message' => 'محتويات السلة',
-            'data' => $transformedCart,
-            'total' => number_format($total, 2)
-        ]);
-    } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-        return response()->json(['error' => 'Token is invalid or expired'], 400);
     }
-}
 
 
     // public function getCart()
@@ -281,7 +301,14 @@ public function getCart()
 
             // تحديث الكمية
             $cart->update(['quantity' => $request->quantity]);
-
+            // إنشاء إشعار للمستخدم بعد تحديث الكمية
+            Notification::create([
+                'user_id' => $userauth->id,
+                'title' => 'تم تحديث كمية المنتج في السلة',
+                'message_ar' => "تم تحديث كمية المنتج رقم {$cart->product_id} في سلتك إلى {$request->quantity}",
+                'message_en' => "Product ID {$cart->product_id} quantity updated in your cart to {$request->quantity}",
+                'type' => 'cart_update',
+            ]);
             return response()->json(['message' => 'تم تحديث الكمية بنجاح', 'cart' => $cart]);
         } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
             return response()->json(['error' => 'Token is invalid or expired'], 400);
@@ -307,7 +334,14 @@ public function getCart()
             if (!$cart) {
                 return response()->json(['message' => 'هذا المنتج غير موجود في سلتك'], 403);
             }
-
+            // إنشاء إشعار للمستخدم بعد حذف المنتج
+            Notification::create([
+                'user_id' => $userauth->id,
+                'title' => 'تمت إزالة منتج من السلة',
+                'message_ar' => "تمت إزالة المنتج رقم {$cart->product_id} من سلتك",
+                'message_en' => "Product ID {$cart->product_id} has been removed from your cart",
+                'type' => 'cart_remove',
+            ]);
             // حذف المنتج من السلة
             $cart->delete();
 
@@ -383,8 +417,21 @@ public function getCart()
                 // حذف العناصر من السلة
                 Cart::whereIn('id', $items->pluck('id'))->delete();
 
+                // بعد إنشاء الطلب وإضافة العناصر
+                Notification::create([
+                    'user_id' => $userauth->id,
+                    'title' => 'تم إنشاء طلب جديد',
+                    'message_ar' => "تم إنشاء طلب جديد برقم {$order->id} بقيمة {$total} ريال.",
+                    'message_en' => "A new order with ID {$order->id} has been created with total amount {$total}.",
+                    'type' => 'order_created',
+                ]);
+
+
                 $orders[] = $order;
             }
+
+
+
 
             return response()->json([
                 'message' => 'تم تأكيد الطلبات بنجاح',
@@ -523,7 +570,13 @@ public function getCart()
             }
 
             $order->save();
-
+            Notification::create([
+                'user_id' => auth()->user()->id ?? null,
+                'title' => 'تم تحديث حالة الطلب',
+                'message_ar' => "تم تحديث حالة الطلب رقم {$order->id} إلى: {$order->status}",
+                'message_en' => "Order #{$order->id} status updated to: {$order->status}",
+                'type' => 'order_status_update',
+            ]);
             return response()->json([
                 'message' => 'تم تحديث حالة الطلب بنجاح',
                 'order' => $order

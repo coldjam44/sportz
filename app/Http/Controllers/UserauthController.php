@@ -7,8 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
-use App\Models\Notification;
-
+use App\Models\Notification; // تأكد من استيراد الموديل
 class UserauthController extends Controller
 {
 
@@ -29,12 +28,25 @@ class UserauthController extends Controller
                 return response()->json(['message' => 'المستخدم غير موجود في قاعدة البيانات'], 400);
             }
 
+
+            Notification::create([
+    'user_id' => $userauth->id,
+    'title' => 'حذف الحساب',
+    'message_ar' => 'تم حذف حسابك بنجاح. نأمل أن نراك مرة أخرى.',
+    'message_en' => 'Your account has been successfully deleted. Hope to see you again.',
+    'status' => 'new',
+    'type' => 'user_account_delete',
+]);
+
             // حذف بيانات المستخدم من جدول UserAuth
             $userauth->delete();
 
             // حذف بيانات المستخدم من جدول users (إن وجد)
             $user->delete();
 
+
+
+            
             return response()->json([
                 'message' => 'تم حذف الحساب بنجاح',
             ], 200);
@@ -105,6 +117,16 @@ class UserauthController extends Controller
             'city' => $request->city,
             'area' => $request->area,
         ]);
+        // إضافة إشعار جديد للمستخدم
+        Notification::create([
+            'user_id' => $user->id,
+            'title' => 'Welcome!',
+            'message_ar' => 'تم تسجيلك بنجاح في التطبيق.',
+            'message_en' => 'You have successfully signed up.',
+            'status' => 'new',
+            'type' => 'user_signup',
+        ]);
+
 
         return response()->json(['message' => 'User registered successfully', 'user' => $user], 201);
     }
@@ -213,15 +235,14 @@ class UserauthController extends Controller
                 'city' => $request->input('city', $userauth->city),
                 'area' => $request->input('area', $userauth->area),
             ]);
+            // إنشاء إشعار للمستخدم
             Notification::create([
-    'user_id' => $userauth->id,
-    'title' => 'تحديث البيانات الشخصية',
-    'message_ar' => 'تم تحديث بيانات حسابك بنجاح.',
-    'message_en' => 'Your profile information has been updated successfully.',
-    'status' => 'new',
-    'type' => __FUNCTION__,
-]);
-
+                'user_id' => $request->id,
+                'title' => 'تحديث الملف الشخصي',
+                'message_ar' => 'تم تحديث بيانات حسابك بنجاح.',
+                'status' => 'new',
+                'type' => 'user_profile_update',
+            ]);
 
             return response()->json(['message' => 'User updated successfully', 'user' => $userauth], 200);
         } catch (\Exception $e) {
