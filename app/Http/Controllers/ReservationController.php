@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\TimeCalculationController;
 use App\Models\CreateStadium;
 use App\Models\Participant;
+
 class ReservationController extends Controller
 {
 
@@ -198,166 +199,166 @@ class ReservationController extends Controller
                 ->get();
 
 
-                $results = $bookings->map(function ($reservation) use ($userauth) {
-                    $stadium = $reservation->stadium;
-                
-                    // جلب بيانات الاستاد
-                    $stadiumdata = CreateStadium::findOrFail($reservation->createstadium_id);
-                
-                    // تجهيز أوقات البداية والنهاية للحجز
-                    $start = strtotime($reservation->start_time);
-                    $end = strtotime($reservation->end_time);
-                    $morning_start = strtotime($stadiumdata->morning_start_time);
-                    $morning_end = strtotime($stadiumdata->morning_end_time);
-                    $evening_start = strtotime($stadiumdata->evening_start_time);
-                    $evening_end = strtotime($stadiumdata->evening_end_time);
-                
-                    // تجهيز طلب دالة حساب الوقت
-                    $timeCalcRequest = new Request([
-                        'selectedStartTime' => date('H:i', $start),
-                        'selectedEndTime' => date('H:i', $end),
-                        'startMorningTime' => date('H:i', $morning_start),
-                        'endMorningTime' => date('H:i', $morning_end),
-                        'startEveningTime' => date('H:i', $evening_start),
-                        'endEveningTime' => date('H:i', $evening_end),
-                    ]);
-                
-                    // استدعاء دالة حساب الوقت
-                    $timeCalculationController = new TimeCalculationController();
-                    $response = $timeCalculationController->calculateTime($timeCalcRequest);
-                
-                    // فك JSON من الرد
-                    $timeCalculationData = json_decode($response->getContent(), true);
-                
-                    // استخراج الساعات الصباحية والمسائية
-                    $morning_hours = $timeCalculationData['morningHours'] ?? 0;
-                    $evening_hours = $timeCalculationData['eveningHours'] ?? 0;
-                
-                    $duration_hours = $morning_hours + $evening_hours;
-                    $duration_text = $duration_hours . ' ساعات';
-                
-                    // حساب الأسعار بناءً على الساعات
-                    $morning_total_price = $morning_hours * $stadium->booking_price;
-                    $evening_total_price = $evening_hours * ($stadium->booking_price + ($stadium->evening_extra_price_per_hour ?? 0));
-                    
-                    $total_price_calculated = $morning_total_price + $evening_total_price;
-                
-                    // حساب اللاعبين المشاركين الكلي للحجز نفسه (نفس الملعب والتاريخ والوقت)
-                    $totalJoinedPlayers = BookStadium::where('createstadium_id', $reservation->createstadium_id)
-                        ->where('date', $reservation->date)
-                        ->where('start_time', $reservation->start_time)
-                        ->where('end_time', $reservation->end_time)
-                        ->sum('players_count');
-                
-                    $remaining = 0;
-                    $player_price = 0;
-                
-                    $players = $reservation->participants->map(fn($p) => trim("{$p->first_name} {$p->last_name}"));
-                
-                    if ($reservation->booking_type === 'individual') {
-                        $remaining = max(0, $reservation->remaining_players);
-                        // استعمال السعر المحسوب بدل السعر المخزن
-                        $player_price = $reservation->players_count > 0
-                            ? number_format($total_price_calculated / $reservation->players_count, 2)
-                            : 0;
-                    }
-                
-                    if ($reservation->booking_type === 'team') {
-                        $total_players_needed = $reservation->teams_count * $reservation->min_players_per_team;
-                        $remaining = max(0, $total_players_needed - $totalJoinedPlayers);
-                        $player_price = $total_players_needed > 0
-                            ? number_format($total_price_calculated / $total_players_needed, 2)
-                            : 0;
-                    }
-                
-                    // تحديث حالة الحجز بناءً على العدد المتبقي
-                    if (
-                        ($reservation->booking_type == 'individual' && $remaining == 0) ||
-                        ($reservation->booking_type == 'team' && $reservation->remaining_teams == 0)
-                    ) {
-                        $reservation->status = 'completed';
-                    } elseif ($reservation->status !== 'cancelled') {
-                        $reservation->status = 'pending';
-                    }
-                
-                    $status_text = match ($reservation->status) {
-                        'cancelled' => "حجز ملغي",
-                        'completed' => "حجز مكتمل",
-                        default => "الحجز لم يكتمل بعد"
-                    };
-                
-                    $data = [
-                        'booking_id' => $reservation->id,
-                        'booking_code' => '#' . $reservation->id,
-                        'booking_type' => $reservation->booking_type,
-                        'status' => $reservation->status,
-                        'status_text' => $status_text,
-                        'stadium_name' => $stadium->name ?? '',
-                        'morning_start_time' =>  $stadium->morning_start_time ?? '',
-                        'morning_end_time' =>  $stadium->morning_end_time ?? '',
-                        'evening_start_time' =>  $stadium->evening_start_time ?? '',
-                        'evening_end_time' =>  $stadium->evening_end_time ?? '',
-                        'stadium_image' => $stadium->image ? asset($stadium->image) : '',
-                        'location' => $stadium->location ?? '',
-                        'duration' => $duration_text,
-                        'distance' => '2.4 كم',
-                        'date' => $reservation->date,
-                        'created_at' => $reservation->created_at,
-                        'start_time' => $reservation->start_time,
-                        'end_time' => $reservation->end_time,
-                        'morning_hours' => $morning_hours,
-                        'morning_total_price' => $morning_total_price,
-                        'evening_hours' => $evening_hours,
-                        'evening_total_price' => $evening_total_price,
-                        // تعيين السعر الكلي المحسوب
-                        'total_price' => (int) $total_price_calculated,
-                        'final_price' => (int) $total_price_calculated,
+            $results = $bookings->map(function ($reservation) use ($userauth) {
+                $stadium = $reservation->stadium;
+
+                // جلب بيانات الاستاد
+                $stadiumdata = CreateStadium::findOrFail($reservation->createstadium_id);
+
+                // تجهيز أوقات البداية والنهاية للحجز
+                $start = strtotime($reservation->start_time);
+                $end = strtotime($reservation->end_time);
+                $morning_start = strtotime($stadiumdata->morning_start_time);
+                $morning_end = strtotime($stadiumdata->morning_end_time);
+                $evening_start = strtotime($stadiumdata->evening_start_time);
+                $evening_end = strtotime($stadiumdata->evening_end_time);
+
+                // تجهيز طلب دالة حساب الوقت
+                $timeCalcRequest = new Request([
+                    'selectedStartTime' => date('H:i', $start),
+                    'selectedEndTime' => date('H:i', $end),
+                    'startMorningTime' => date('H:i', $morning_start),
+                    'endMorningTime' => date('H:i', $morning_end),
+                    'startEveningTime' => date('H:i', $evening_start),
+                    'endEveningTime' => date('H:i', $evening_end),
+                ]);
+
+                // استدعاء دالة حساب الوقت
+                $timeCalculationController = new TimeCalculationController();
+                $response = $timeCalculationController->calculateTime($timeCalcRequest);
+
+                // فك JSON من الرد
+                $timeCalculationData = json_decode($response->getContent(), true);
+
+                // استخراج الساعات الصباحية والمسائية
+                $morning_hours = $timeCalculationData['morningHours'] ?? 0;
+                $evening_hours = $timeCalculationData['eveningHours'] ?? 0;
+
+                $duration_hours = $morning_hours + $evening_hours;
+                $duration_text = $duration_hours . ' ساعات';
+
+                // حساب الأسعار بناءً على الساعات
+                $morning_total_price = $morning_hours * $stadium->booking_price;
+                $evening_total_price = $evening_hours * ($stadium->booking_price + ($stadium->evening_extra_price_per_hour ?? 0));
+
+                $total_price_calculated = $morning_total_price + $evening_total_price;
+
+                // حساب اللاعبين المشاركين الكلي للحجز نفسه (نفس الملعب والتاريخ والوقت)
+                $totalJoinedPlayers = BookStadium::where('createstadium_id', $reservation->createstadium_id)
+                    ->where('date', $reservation->date)
+                    ->where('start_time', $reservation->start_time)
+                    ->where('end_time', $reservation->end_time)
+                    ->sum('players_count');
+
+                $remaining = 0;
+                $player_price = 0;
+
+                $players = $reservation->participants->map(fn($p) => trim("{$p->first_name} {$p->last_name}"));
+
+                if ($reservation->booking_type === 'individual') {
+                    $remaining = max(0, $reservation->remaining_players);
+                    // استعمال السعر المحسوب بدل السعر المخزن
+                    $player_price = $reservation->players_count > 0
+                        ? number_format($total_price_calculated / $reservation->players_count, 2)
+                        : 0;
+                }
+
+                if ($reservation->booking_type === 'team') {
+                    $total_players_needed = $reservation->teams_count * $reservation->min_players_per_team;
+                    $remaining = max(0, $total_players_needed - $totalJoinedPlayers);
+                    $player_price = $total_players_needed > 0
+                        ? number_format($total_price_calculated / $total_players_needed, 2)
+                        : 0;
+                }
+
+                // تحديث حالة الحجز بناءً على العدد المتبقي
+                if (
+                    ($reservation->booking_type == 'individual' && $remaining == 0) ||
+                    ($reservation->booking_type == 'team' && $reservation->remaining_teams == 0)
+                ) {
+                    $reservation->status = 'completed';
+                } elseif ($reservation->status !== 'cancelled') {
+                    $reservation->status = 'pending';
+                }
+
+                $status_text = match ($reservation->status) {
+                    'cancelled' => "حجز ملغي",
+                    'completed' => "حجز مكتمل",
+                    default => "الحجز لم يكتمل بعد"
+                };
+
+                $data = [
+                    'booking_id' => $reservation->id,
+                    'booking_code' => '#' . $reservation->id,
+                    'booking_type' => $reservation->booking_type,
+                    'status' => $reservation->status,
+                    'status_text' => $status_text,
+                    'stadium_name' => $stadium->name ?? '',
+                    'morning_start_time' =>  $stadium->morning_start_time ?? '',
+                    'morning_end_time' =>  $stadium->morning_end_time ?? '',
+                    'evening_start_time' =>  $stadium->evening_start_time ?? '',
+                    'evening_end_time' =>  $stadium->evening_end_time ?? '',
+                    'stadium_image' => $stadium->image ? asset($stadium->image) : '',
+                    'location' => $stadium->location ?? '',
+                    'duration' => $duration_text,
+                    'distance' => '2.4 كم',
+                    'date' => $reservation->date,
+                    'created_at' => $reservation->created_at,
+                    'start_time' => $reservation->start_time,
+                    'end_time' => $reservation->end_time,
+                    'morning_hours' => $morning_hours,
+                    'morning_total_price' => $morning_total_price,
+                    'evening_hours' => $evening_hours,
+                    'evening_total_price' => $evening_total_price,
+                    // تعيين السعر الكلي المحسوب
+                    'total_price' => (int) $total_price_calculated,
+                    'final_price' => (int) $total_price_calculated,
+                    'joined_players' => (int) $totalJoinedPlayers,
+                    'remaining_players' => $remaining,
+                    'players' => $players,
+                    'sport_id' => $stadium?->sportsuser?->id,
+                    'sportname_ar' => $stadium?->sportsuser?->name_ar,
+                    'sportname_en' => $stadium?->sportsuser?->name_en,
+                    'average_rate' => $stadium->rates ? $stadium->rates->avg('rate') : null,
+                    'ratings_count' => $stadium->rates ? $stadium->rates->count() : 0,
+                    'summary' => [
+                        'calculation' => 'player_price = total_price / players_count',
+                        'players_count' => (int) $reservation->players_count,
                         'joined_players' => (int) $totalJoinedPlayers,
                         'remaining_players' => $remaining,
-                        'players' => $players,
-                        'sport_id' => $stadium?->sportsuser?->id,
-                        'sportname_ar' => $stadium?->sportsuser?->name_ar,
-                        'sportname_en' => $stadium?->sportsuser?->name_en,
-                        'average_rate' => $stadium->rates ? $stadium->rates->avg('rate') : null,
-                        'ratings_count' => $stadium->rates ? $stadium->rates->count() : 0,
-                        'summary' => [
-                            'calculation' => 'player_price = total_price / players_count',
-                            'players_count' => (int) $reservation->players_count,
-                            'joined_players' => (int) $totalJoinedPlayers,
-                            'remaining_players' => $remaining,
-                            'morning_hours' => $morning_hours,
-                            'evening_hours' => $evening_hours,
-                            'morning_price_per_hour' => (float) $stadium->booking_price,
-                            'evening_price_per_hour' => (float) ($stadium->booking_price + ($stadium->evening_extra_price_per_hour ?? 0)),
-                            'morning_total' => $morning_total_price,
-                            'evening_total' => $evening_total_price,
-                            'total_price' => $total_price_calculated,
-                            'player_price' => $player_price,
-                            'status' => $reservation->status,
-                        ],
-                        'time_calculation_response' => $timeCalculationData,
-                    ];
-                
-                    if ($reservation->booking_type == 'field') {
-                        $data['price_per_hour'] = $stadium->booking_price;
-                        $data['extra_price_per_hour'] = $stadium->evening_extra_price_per_hour ?? 0;
-                        $data['hours'] = $duration_hours;
-                    }
-                
-                    if ($reservation->booking_type == 'individual') {
-                        $data['player_price'] = $player_price;
-                    }
-                
-                    if ($reservation->booking_type == 'team') {
-                        $data['team_price_per_player'] = $total_price_calculated;
-                        $data['price_per_player'] = $player_price;
-                        $data['teams_count'] = $reservation->teams_count;
-                        $data['min_players_per_team'] = $reservation->min_players_per_team;
-                    }
-                
-                    return $data;
-                });
-                
+                        'morning_hours' => $morning_hours,
+                        'evening_hours' => $evening_hours,
+                        'morning_price_per_hour' => (float) $stadium->booking_price,
+                        'evening_price_per_hour' => (float) ($stadium->booking_price + ($stadium->evening_extra_price_per_hour ?? 0)),
+                        'morning_total' => $morning_total_price,
+                        'evening_total' => $evening_total_price,
+                        'total_price' => $total_price_calculated,
+                        'player_price' => $player_price,
+                        'status' => $reservation->status,
+                    ],
+                    'time_calculation_response' => $timeCalculationData,
+                ];
+
+                if ($reservation->booking_type == 'field') {
+                    $data['price_per_hour'] = $stadium->booking_price;
+                    $data['extra_price_per_hour'] = $stadium->evening_extra_price_per_hour ?? 0;
+                    $data['hours'] = $duration_hours;
+                }
+
+                if ($reservation->booking_type == 'individual') {
+                    $data['player_price'] = $player_price;
+                }
+
+                if ($reservation->booking_type == 'team') {
+                    $data['team_price_per_player'] = $total_price_calculated;
+                    $data['price_per_player'] = $player_price;
+                    $data['teams_count'] = $reservation->teams_count;
+                    $data['min_players_per_team'] = $reservation->min_players_per_team;
+                }
+
+                return $data;
+            });
+
 
 
             // Apply filtering
@@ -394,116 +395,129 @@ class ReservationController extends Controller
         }
     }
 
- 
 
-    
- public function cancelReservation(Request $request, $id)
-{
-    try {
-        $user = JWTAuth::parseToken()->authenticate();
 
-        // البحث عن userauth_id المرتبط بالمستخدم
-        $userauth = UserAuth::where('phone', $user->phone_number)->first();
-        if (!$userauth) {
-            return response()->json(['message' => 'المستخدم غير موجود'], 400);
-        }
 
-        // البحث عن الحجز
-        $reservation = BookStadium::where('id', $id)->first();
+    public function cancelReservation(Request $request, $id)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
 
-        if (!$reservation) {
-            return response()->json(['message' => 'الحجز غير موجود'], 403);
-        }
-
-        // التحقق مما إذا كان المستخدم هو صاحب الحجز أو مشارك فيه
-        if ($reservation->userauth_id !== $userauth->id) {
-            // تحقق إذا كان المستخدم مشارك في الحجز
-            $participations = Participant::where('bookstadium_id', $reservation->id)
-                ->where('userauth_id', $userauth->id)
-                ->get();
-
-            if ($participations->isEmpty()) {
-                return response()->json(['message' => 'ليس لديك صلاحية إلغاء هذا الحجز'], 403);
+            // البحث عن userauth_id المرتبط بالمستخدم
+            $userauth = UserAuth::where('phone', $user->phone_number)->first();
+            if (!$userauth) {
+                return response()->json(['message' => 'المستخدم غير موجود'], 400);
             }
 
-            $countToRemove = $participations->count();
+            // البحث عن الحجز
+            $reservation = BookStadium::where('id', $id)->first();
 
-            // حذف جميع مشاركاته
-            Participant::where('bookstadium_id', $reservation->id)
-                ->where('userauth_id', $userauth->id)
-                ->delete();
-
-            // تحديث عدد اللاعبين
-            $reservation->players_count = max(0, $reservation->players_count - $countToRemove);
-
-            if ($reservation->booking_type === 'individual') {
-                $reservation->remaining_players += $countToRemove;
-
-                if ($reservation->remaining_players > 0) {
-                    $reservation->status = 'available';
-                }
-            } elseif ($reservation->booking_type === 'team') {
-                $completeTeams = intdiv($reservation->players_count, $reservation->min_players_per_team);
-                $reservation->remaining_teams = max($reservation->teams_count - $completeTeams, 0);
-
-                $playersInCurrentTeam = $reservation->players_count % $reservation->min_players_per_team;
-
-                if ($playersInCurrentTeam == 0 && $reservation->remaining_teams > 0) {
-                    $reservation->remaining_players = $reservation->min_players_per_team;
-                } else {
-                    $reservation->remaining_players = $reservation->min_players_per_team - $playersInCurrentTeam;
-                }
-
-                if ($reservation->remaining_teams == 0 && $reservation->remaining_players == 0) {
-                    $reservation->status = 'completed';
-                } else {
-                    $reservation->status = 'available';
-                }
+            if (!$reservation) {
+                return response()->json(['message' => 'الحجز غير موجود'], 403);
             }
 
+
+
+            $now = Carbon::now();
+            $startTime = Carbon::parse($reservation->start_time);
+
+            $diffInMinutes = $startTime->diffInMinutes($now, false);
+
+            if ($diffInMinutes <= 60) {  // يعني باقي أقل من أو يساوي 60 دقيقة
+                return response()->json([
+                    'message' => 'لا يمكن إلغاء الحجز قبل أقل من ساعة من بدايته'
+                ], 403);
+            }
+
+            // التحقق مما إذا كان المستخدم هو صاحب الحجز أو مشارك فيه
+            if ($reservation->userauth_id !== $userauth->id) {
+                // تحقق إذا كان المستخدم مشارك في الحجز
+                $participations = Participant::where('bookstadium_id', $reservation->id)
+                    ->where('userauth_id', $userauth->id)
+                    ->get();
+
+                if ($participations->isEmpty()) {
+                    return response()->json(['message' => 'ليس لديك صلاحية إلغاء هذا الحجز'], 403);
+                }
+
+                $countToRemove = $participations->count();
+
+                // حذف جميع مشاركاته
+                Participant::where('bookstadium_id', $reservation->id)
+                    ->where('userauth_id', $userauth->id)
+                    ->delete();
+
+                // تحديث عدد اللاعبين
+                $reservation->players_count = max(0, $reservation->players_count - $countToRemove);
+
+                if ($reservation->booking_type === 'individual') {
+                    $reservation->remaining_players += $countToRemove;
+
+                    if ($reservation->remaining_players > 0) {
+                        $reservation->status = 'available';
+                    }
+                } elseif ($reservation->booking_type === 'team') {
+                    $completeTeams = intdiv($reservation->players_count, $reservation->min_players_per_team);
+                    $reservation->remaining_teams = max($reservation->teams_count - $completeTeams, 0);
+
+                    $playersInCurrentTeam = $reservation->players_count % $reservation->min_players_per_team;
+
+                    if ($playersInCurrentTeam == 0 && $reservation->remaining_teams > 0) {
+                        $reservation->remaining_players = $reservation->min_players_per_team;
+                    } else {
+                        $reservation->remaining_players = $reservation->min_players_per_team - $playersInCurrentTeam;
+                    }
+
+                    if ($reservation->remaining_teams == 0 && $reservation->remaining_players == 0) {
+                        $reservation->status = 'completed';
+                    } else {
+                        $reservation->status = 'available';
+                    }
+                }
+
+                $reservation->save();
+
+                return response()->json(['message' => 'تم إلغاء مشاركتك في الحجز بنجاح'], 200);
+            }
+
+
+            // إذا كان المالك هو من يقوم بالإلغاء: حفظ السبب وتغيير الحالة في السجل الأصلي
+            $reservation->status = 'cancelled';
+            $reservation->cancellation_reason = $request->input('reason', 'لم يتم تحديد السبب');
             $reservation->save();
 
-            return response()->json(['message' => 'تم إلغاء مشاركتك في الحجز بنجاح'], 200);
+            // نقل السجل إلى جدول الحجوزات الملغاة
+            \App\Models\BookStadiumCanceledReservation::create([
+                'userauth_id' => $reservation->userauth_id,
+                'createstadium_id' => $reservation->createstadium_id,
+                'start_time' => $reservation->start_time,
+                'end_time' => $reservation->end_time,
+                'booking_type' => $reservation->booking_type,
+                'players_count' => $reservation->players_count,
+                'remaining_players' => $reservation->remaining_players,
+                'teams_count' => $reservation->teams_count,
+                'min_players_per_team' => $reservation->min_players_per_team,
+                'total_price' => $reservation->total_price,
+                'remaining_teams' => $reservation->remaining_teams,
+                'status' => $reservation->status,
+                'cancellation_reason' => $reservation->cancellation_reason,
+                'date' => $reservation->date,
+                'player_price' => $reservation->player_price,
+                'created_at' => $reservation->created_at,
+                'updated_at' => now(),
+            ]);
+
+            // حذف السجل الأصلي بعد النقل
+            // $reservation->delete();
+
+            return response()->json([
+                'message' => 'تم إلغاء الحجز ونقله إلى الحجوزات الملغاة بنجاح',
+                'status' => 'cancelled'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'حدث خطأ: ' . $e->getMessage()], 500);
         }
-
-
-        // إذا كان المالك هو من يقوم بالإلغاء: حفظ السبب وتغيير الحالة في السجل الأصلي
-        $reservation->status = 'cancelled';
-        $reservation->cancellation_reason = $request->input('reason', 'لم يتم تحديد السبب');
-        $reservation->save();
-
-        // نقل السجل إلى جدول الحجوزات الملغاة
-        \App\Models\BookStadiumCanceledReservation::create([
-            'userauth_id' => $reservation->userauth_id,
-            'createstadium_id' => $reservation->createstadium_id,
-            'start_time' => $reservation->start_time,
-            'end_time' => $reservation->end_time,
-            'booking_type' => $reservation->booking_type,
-            'players_count' => $reservation->players_count,
-            'remaining_players' => $reservation->remaining_players,
-            'teams_count' => $reservation->teams_count,
-            'min_players_per_team' => $reservation->min_players_per_team,
-            'total_price' => $reservation->total_price,
-            'remaining_teams' => $reservation->remaining_teams,
-            'status' => $reservation->status,
-            'cancellation_reason' => $reservation->cancellation_reason,
-            'date' => $reservation->date,
-            'player_price' => $reservation->player_price,
-            'created_at' => $reservation->created_at,
-            'updated_at' => now(),
-        ]);
-
-        // حذف السجل الأصلي بعد النقل
-       // $reservation->delete();
-
-        return response()->json([
-            'message' => 'تم إلغاء الحجز ونقله إلى الحجوزات الملغاة بنجاح',
-            'status' => 'cancelled'
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['message' => 'حدث خطأ: ' . $e->getMessage()], 500);
     }
-}
 
 
 

@@ -297,7 +297,8 @@ class BookstadiumController extends Controller
                 $remaining_teams = $request->teams_count - 1;
             }
 
-            $booking = BookStadium::create([
+
+            $data = [
                 'createstadium_id' => $request->createstadium_id,
                 'userauth_id' => $userauth->id,
                 'date' => $request->date,
@@ -310,7 +311,30 @@ class BookstadiumController extends Controller
                 'total_price' => $total_price,
                 'player_price' => $player_price,
                 'remaining_teams' => $remaining_teams,
-            ]);
+            ];
+
+            if ($request->booking_type === 'field') {
+                $data['status'] = 'cancelled';
+            }
+
+            $booking = BookStadium::create($data);
+
+
+
+            // $booking = BookStadium::create([
+            //     'createstadium_id' => $request->createstadium_id,
+            //     'userauth_id' => $userauth->id,
+            //     'date' => $request->date,
+            //     'start_time' => $request->start_time,
+            //     'end_time' => $request->end_time,
+            //     'booking_type' => $request->booking_type,
+            //     'players_count' => $request->players_count ?? null,
+            //     'teams_count' => $request->teams_count,
+            //     'min_players_per_team' => $request->min_players_per_team,
+            //     'total_price' => $total_price,
+            //     'player_price' => $player_price,
+            //     'remaining_teams' => $remaining_teams,
+            // ]);
 
             $price_per_team = null;
             if ($request->booking_type == 'team') {
