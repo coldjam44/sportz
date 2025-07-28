@@ -12,7 +12,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
- 
+
 
 
 class AuthController extends Controller
@@ -68,110 +68,80 @@ class AuthController extends Controller
 
 
     public function verifyOtp(Request $request)
-    {
-        // التحقق من صحة البيانات المدخلة
-        $validator = Validator::make($request->all(), [
-            'phone_number' => 'required',
-            'otp_code' => 'required',
-        ]);
+{
+    $validator = Validator::make($request->all(), [
+        'phone_number' => 'required',
+        'otp_code' => 'required',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
-
-        // العثور على المستخدم باستخدام رقم الهاتف
-        $user = User::where('phone_number', $request->phone_number)->first();
-
-        if (!$user) {
-            return response()->json(['error' => 'User not found.'], 404);
-        }
-
-        // التحقق من OTP
-        if ($user->otp_code == $request->otp_code) {
-            // إذا تطابق، قم بتحديث حالة التحقق
-            $user->is_verified = true;
-            $user->save();
-
-
-
-            // توليد JWT Token
-            $token = JWTAuth::fromUser($user);
-
-            return response()->json([
-                'message' => 'OTP verified successfully.',
-                'token' => $token, // إرجاع الـ JWT Token
-            ], 200);
-        }
-
-        return response()->json(['error' => 'Invalid OTP.'], 400);
+    if ($validator->fails()) {
+        return response()->json(['error' => $validator->errors()], 400);
     }
- 
 
+    $user = User::where('phone_number', $request->phone_number)->first();
 
-    
-    public function prvotp(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'phone_number' => 'required',
-            'otp_code' => 'required',
-        ]);
-    
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
-    
-        $provider = Userauthlogin::where('phone', $request->phone_number)->first();
-    
-        if (!$provider) {
-            return response()->json(['error' => 'Provider not found.'], 404);
-        }
-    
-        if ($provider->prv_otp_code == $request->otp_code) {
-            $token = JWTAuth::claims(['usertype' => 'provider'])->fromUser($provider);
-    
-            return response()->json([
-                'message' => 'Provider OTP verified successfully.',
-                'token'=>$token,
-            ], 200);
-        }
-    
-        return response()->json(['error' => 'Invalid OTP.'], 400);
+    if (!$user) {
+        return response()->json(['error' => 'User not found.'], 404);
     }
-    
 
+    if ($user->otp_code == $request->otp_code) {
+        $user->is_verified = true;
+        $user->save();
 
+        $token = JWTAuth::claims(['user_type' => $user->user_type])->fromUser($user);
 
-    public function usrotp(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'phone_number' => 'required',
-            'otp_code' => 'required',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
-
-        $user = User::where('phone_number', $request->phone_number)->first();
-
-        if (!$user) {
-            return response()->json(['error' => 'User not found.'], 404);
-        }
-
-        if ($user->otp_code == $request->otp_code) {
-            $user->is_verified = true;
-            $user->save();
-
-            $token = JWTAuth::claims(['usertype' => 'user'])->fromUser($user);
-
-            return response()->json([
-                'message' => 'user OTP verified successfully.',
-                'token' => $token,
-            ], 200);
-        }
-
-        return response()->json(['error' => 'Invalid OTP.'], 400);
+        return response()->json([
+            'message' => 'OTP verified successfully.',
+            'token' => $token,
+        ], 200);
     }
+
+    return response()->json(['error' => 'Invalid OTP.'], 400);
+}
+
+
+    // public function verifyOtp(Request $request)
+    // {
+    //     // التحقق من صحة البيانات المدخلة
+    //     $validator = Validator::make($request->all(), [
+    //         'phone_number' => 'required',
+    //         'otp_code' => 'required',
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         return response()->json(['error' => $validator->errors()], 400);
+    //     }
+
+    //     // العثور على المستخدم باستخدام رقم الهاتف
+    //     $user = User::where('phone_number', $request->phone_number)->first();
+
+    //     if (!$user) {
+    //         return response()->json(['error' => 'User not found.'], 404);
+    //     }
+
+    //     // التحقق من OTP
+    //     if ($user->otp_code == $request->otp_code) {
+    //         // إذا تطابق، قم بتحديث حالة التحقق
+    //         $user->is_verified = true;
+    //         $user->save();
+
+
+
+    //         // توليد JWT Token
+    //         $token = JWTAuth::fromUser($user);
+
+    //         return response()->json([
+    //             'message' => 'OTP verified successfully.',
+    //             'token' => $token, // إرجاع الـ JWT Token
+    //         ], 200);
+    //     }
+
+    //     return response()->json(['error' => 'Invalid OTP.'], 400);
+    // }
+
+
+
+
 
     public function logout(Request $request)
     {

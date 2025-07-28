@@ -93,14 +93,19 @@ class ProviderauthController extends Controller
             'phone_number' => $user->phone_number, // استخدام رقم الهاتف من المستخدم المسجل
         ]);
 
-        Notification::create([
-            'user_id' => $provider->id, // أو حسب الحقل المناسب
-            'title' => 'أهلاً بك!',
-            'message_ar' => 'تم تسجيلك كبروفايدر بنجاح.',
-            'message_en' => 'You have successfully signed up as a provider.',
-            'status' => 'new',
-            'type' => 'provider_signup',
-        ]);
+      $notificationController = new NotificationController();
+
+$notificationController->addNotification([
+    'user_id' => $provider->id, // أو حسب الحقل المناسب
+    'title' => 'أهلاً بك!',
+    'message_ar' => 'تم تسجيلك كبروفايدر بنجاح.',
+    'message_en' => 'You have successfully signed up as a provider.',
+    'status' => 'new',
+    'type' => 'provider_signup',
+]);
+
+        User::where('phone_number', $user->phone_number)->update(['user_type' => 'provider']);
+
 
         return response()->json([
             'message' => 'Provider registered successfully',
@@ -159,15 +164,15 @@ class ProviderauthController extends Controller
             }
         }
 
-        Notification::create([
-            'user_id' => $provider->id,
-            'title' => 'تم تحديث بياناتك',
-            'message_ar' => 'تم تعديل ملفك الشخصي بنجاح.',
-            'message_en' => 'Your profile has been updated successfully.',
-            'status' => 'new',
-            'type' => 'provider_profile_update',
-        ]);
-
+      $notificationController = new NotificationController();
+$notificationController->addNotification([
+    'user_id' => $provider->id,
+    'title' => 'تم تحديث بياناتك',
+    'message_ar' => 'تم تعديل ملفك الشخصي بنجاح.',
+    'message_en' => 'Your profile has been updated successfully.',
+    'status' => 'new',
+    'type' => 'provider_profile_update',
+]);
         return response()->json([
             'message' => 'Provider updated successfully.',
             'provider' => $provider,
@@ -243,7 +248,8 @@ class ProviderauthController extends Controller
         // حذف الحساب نفسه
         $provider->delete();
 
-Notification::create([
+$notificationController = new NotificationController();
+$notificationController->addNotification([
     'user_id' => $provider->id,
     'title' => 'حذف الحساب',
     'message_ar' => 'تم حذف حسابك بنجاح. نأسف لرحيلك!',
@@ -251,6 +257,8 @@ Notification::create([
     'status' => 'new',
     'type' => 'provider_account_delete',
 ]);
+
+
 
 
         // إبطال التوكن بعد حذف الحساب

@@ -48,13 +48,16 @@ class CartController extends Controller
                 $cartItem->update(['quantity' => $cartItem->quantity + $request->quantity]);
 
                 // إشعار بتحديث المنتج في السلة
-                Notification::create([
-                    'user_id' => $userauth->id,
-                    'title' => 'تم تحديث المنتج في السلة',
-                    'message_ar' => "تم تحديث كمية المنتج رقم {$request->product_id} في السلة إلى {$cartItem->quantity}",
-                    'message_en' => "Product ID {$request->product_id} quantity updated in cart to {$cartItem->quantity}",
-                    'type' => 'cart_update',
-                ]);
+                $notificationController = new NotificationController();
+
+$notificationController->addNotification([
+    'user_id' => $userauth->id,
+    'title' => 'تم تحديث المنتج في السلة',
+    'message_ar' => "تم تحديث كمية المنتج رقم {$request->product_id} في السلة إلى {$cartItem->quantity}",
+    'message_en' => "Product ID {$request->product_id} quantity updated in cart to {$cartItem->quantity}",
+    'type' => 'cart_update',
+]);
+
             } else {
                 // إضافة منتج جديد إلى السلة
                 $newCartItem = Cart::create([
@@ -64,13 +67,16 @@ class CartController extends Controller
                 ]);
 
                 // إشعار بإضافة منتج جديد للسلة
-                Notification::create([
-                    'user_id' => $userauth->id,
-                    'title' => 'تم إضافة منتج جديد إلى السلة',
-                    'message_ar' => "تم إضافة المنتج رقم {$request->product_id} إلى السلة بكمية {$request->quantity}",
-                    'message_en' => "Product ID {$request->product_id} added to cart with quantity {$request->quantity}",
-                    'type' => 'cart_add',
-                ]);
+            $notificationController = new NotificationController();
+
+$notificationController->addNotification([
+    'user_id' => $userauth->id,
+    'title' => 'تم إضافة منتج جديد إلى السلة',
+    'message_ar' => "تم إضافة المنتج رقم {$request->product_id} إلى السلة بكمية {$request->quantity}",
+    'message_en' => "Product ID {$request->product_id} added to cart with quantity {$request->quantity}",
+    'type' => 'cart_add',
+]);
+
             }
 
 
@@ -302,13 +308,16 @@ class CartController extends Controller
             // تحديث الكمية
             $cart->update(['quantity' => $request->quantity]);
             // إنشاء إشعار للمستخدم بعد تحديث الكمية
-            Notification::create([
-                'user_id' => $userauth->id,
-                'title' => 'تم تحديث كمية المنتج في السلة',
-                'message_ar' => "تم تحديث كمية المنتج رقم {$cart->product_id} في سلتك إلى {$request->quantity}",
-                'message_en' => "Product ID {$cart->product_id} quantity updated in your cart to {$request->quantity}",
-                'type' => 'cart_update',
-            ]);
+          $notificationController = new NotificationController();
+
+$notificationController->addNotification([
+    'user_id' => $userauth->id,
+    'title' => 'تم تحديث كمية المنتج في السلة',
+    'message_ar' => "تم تحديث كمية المنتج رقم {$cart->product_id} في سلتك إلى {$request->quantity}",
+    'message_en' => "Product ID {$cart->product_id} quantity updated in your cart to {$request->quantity}",
+    'type' => 'cart_update',
+]);
+
             return response()->json(['message' => 'تم تحديث الكمية بنجاح', 'cart' => $cart]);
         } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
             return response()->json(['error' => 'Token is invalid or expired'], 400);
@@ -335,13 +344,16 @@ class CartController extends Controller
                 return response()->json(['message' => 'هذا المنتج غير موجود في سلتك'], 403);
             }
             // إنشاء إشعار للمستخدم بعد حذف المنتج
-            Notification::create([
-                'user_id' => $userauth->id,
-                'title' => 'تمت إزالة منتج من السلة',
-                'message_ar' => "تمت إزالة المنتج رقم {$cart->product_id} من سلتك",
-                'message_en' => "Product ID {$cart->product_id} has been removed from your cart",
-                'type' => 'cart_remove',
-            ]);
+            $notificationController = new NotificationController();
+
+$notificationController->addNotification([
+    'user_id' => $userauth->id,
+    'title' => 'تمت إزالة منتج من السلة',
+    'message_ar' => "تمت إزالة المنتج رقم {$cart->product_id} من سلتك",
+    'message_en' => "Product ID {$cart->product_id} has been removed from your cart",
+    'type' => 'cart_remove',
+]);
+
             // حذف المنتج من السلة
             $cart->delete();
 
@@ -418,13 +430,16 @@ class CartController extends Controller
                 Cart::whereIn('id', $items->pluck('id'))->delete();
 
                 // بعد إنشاء الطلب وإضافة العناصر
-                Notification::create([
-                    'user_id' => $userauth->id,
-                    'title' => 'تم إنشاء طلب جديد',
-                    'message_ar' => "تم إنشاء طلب جديد برقم {$order->id} بقيمة {$total} ريال.",
-                    'message_en' => "A new order with ID {$order->id} has been created with total amount {$total}.",
-                    'type' => 'order_created',
-                ]);
+                $notificationController = new NotificationController();
+
+$notificationController->addNotification([
+    'user_id' => $userauth->id,
+    'title' => 'تم إنشاء طلب جديد',
+    'message_ar' => "تم إنشاء طلب جديد برقم {$order->id} بقيمة {$total} ريال.",
+    'message_en' => "A new order with ID {$order->id} has been created with total amount {$total}.",
+    'type' => 'order_created',
+]);
+
 
 
                 $orders[] = $order;
@@ -570,13 +585,16 @@ class CartController extends Controller
             }
 
             $order->save();
-            Notification::create([
-                'user_id' => auth()->user()->id ?? null,
-                'title' => 'تم تحديث حالة الطلب',
-                'message_ar' => "تم تحديث حالة الطلب رقم {$order->id} إلى: {$order->status}",
-                'message_en' => "Order #{$order->id} status updated to: {$order->status}",
-                'type' => 'order_status_update',
-            ]);
+         $notificationController = new NotificationController();
+
+$notificationController->addNotification([
+    'user_id' => auth()->user()->id ?? null,
+    'title' => 'تم تحديث حالة الطلب',
+    'message_ar' => "تم تحديث حالة الطلب رقم {$order->id} إلى: {$order->status}",
+    'message_en' => "Order #{$order->id} status updated to: {$order->status}",
+    'type' => 'order_status_update',
+]);
+
             return response()->json([
                 'message' => 'تم تحديث حالة الطلب بنجاح',
                 'order' => $order

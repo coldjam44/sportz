@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\Notification; // تأكد من استيراد الموديل
+use App\Models\User;
+
 class UserauthController extends Controller
 {
 
@@ -29,7 +31,9 @@ class UserauthController extends Controller
             }
 
 
-            Notification::create([
+           $notificationController = new NotificationController();
+
+$notificationController->addNotification([
     'user_id' => $userauth->id,
     'title' => 'حذف الحساب',
     'message_ar' => 'تم حذف حسابك بنجاح. نأمل أن نراك مرة أخرى.',
@@ -37,6 +41,7 @@ class UserauthController extends Controller
     'status' => 'new',
     'type' => 'user_account_delete',
 ]);
+
 
             // حذف بيانات المستخدم من جدول UserAuth
             $userauth->delete();
@@ -46,7 +51,7 @@ class UserauthController extends Controller
 
 
 
-            
+
             return response()->json([
                 'message' => 'تم حذف الحساب بنجاح',
             ], 200);
@@ -118,15 +123,21 @@ class UserauthController extends Controller
             'area' => $request->area,
         ]);
         // إضافة إشعار جديد للمستخدم
-        Notification::create([
-            'user_id' => $user->id,
-            'title' => 'Welcome!',
-            'message_ar' => 'تم تسجيلك بنجاح في التطبيق.',
-            'message_en' => 'You have successfully signed up.',
-            'status' => 'new',
-            'type' => 'user_signup',
-        ]);
+       $notificationController = new NotificationController();
 
+$notificationController->addNotification([
+    'user_id' => $user->id,
+    'title' => 'Welcome!',
+    'message_ar' => 'تم تسجيلك بنجاح في التطبيق.',
+    'message_en' => 'You have successfully signed up.',
+    'status' => 'new',
+    'type' => 'user_signup',
+]);
+
+        // حدث عمود user_type في users
+        User::where('phone_number', $request->phone)->update([
+            'user_type' => 'user',
+        ]);
 
         return response()->json(['message' => 'User registered successfully', 'user' => $user], 201);
     }
@@ -236,13 +247,16 @@ class UserauthController extends Controller
                 'area' => $request->input('area', $userauth->area),
             ]);
             // إنشاء إشعار للمستخدم
-            Notification::create([
-                'user_id' => $request->id,
-                'title' => 'تحديث الملف الشخصي',
-                'message_ar' => 'تم تحديث بيانات حسابك بنجاح.',
-                'status' => 'new',
-                'type' => 'user_profile_update',
-            ]);
+     $notificationController = new NotificationController();
+$notificationController->addNotification([
+    'user_id' => $user->id,
+    'title' => 'تحديث الملف الشخصي',
+    'message_ar' => 'تم تحديث بيانات حسابك بنجاح.',
+    'message_en' => 'Your profile has been updated successfully.',
+    'status' => 'new',
+    'type' => 'user_profile_update',
+]);
+
 
             return response()->json(['message' => 'User updated successfully', 'user' => $userauth], 200);
         } catch (\Exception $e) {

@@ -6,8 +6,11 @@ use App\Models\addproduct;
 use App\Models\createstore;
 use Illuminate\Http\Request;
 use App\Models\CreateStadium;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
-class HideController extends Controller
+
+class HideController extends Controller 
 {
     public function hide(Request $request)
     {

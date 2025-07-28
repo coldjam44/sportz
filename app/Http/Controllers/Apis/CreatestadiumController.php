@@ -12,7 +12,7 @@ use App\Http\Trait\GeneralTrait;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
-
+use App\Http\Controllers\NotificationController;
 class CreatestadiumController extends Controller
 {
     use GeneralTrait;
@@ -122,6 +122,18 @@ class CreatestadiumController extends Controller
 
         $stadium->save();
         $stadium->avilableservice()->sync($request->avilableservice_ids ?? []);
+
+$notificationController = new NotificationController();
+$notificationController->addNotification([
+    'user_id' => $provider->id,
+    'title' => 'تم إضافة ملعب جديد',
+    'message_ar' => "تم إضافة الملعب '{$stadium->name}' بنجاح.",
+    'message_en' => "Stadium '{$stadium->name}' has been added successfully.",
+    'status' => 'new',
+    'type' => 'stadium_created',
+]);
+
+
 
         return response()->json([
             'status' => true,

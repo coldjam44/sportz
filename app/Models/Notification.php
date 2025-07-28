@@ -16,5 +16,6 @@ class Notification extends Model
         'message_en',
         'status',
         'type',
+        'account_type',
     ];
 }

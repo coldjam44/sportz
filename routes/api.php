@@ -152,6 +152,7 @@ Route::middleware('auth:api')->get('user/productdeatials/{product_id}', [Creates
 Route::post('/time-details', [TimeCalculationController::class, 'calculateTime']);
 Route::middleware('auth:api')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);         // جلب كل الإشعارات
+    Route::get('/test', [NotificationController::class, 'test']);         
     Route::post('/notifications', [NotificationController::class, 'store']);        // إنشاء إشعار جديد
     Route::get('/notifications/{id}', [NotificationController::class, 'show']);     // عرض إشعار معين
     Route::put('/notifications/{id}', [NotificationController::class, 'update']);   // تحديث حالة الإشعار
